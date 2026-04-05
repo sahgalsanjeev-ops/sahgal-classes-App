@@ -29,6 +29,8 @@ export type ProfileRow = {
   country: string | null;
   pin_code: string | null;
   onboarding_completed: boolean;
+  /** Admin-set: active | inactive | blocked (see supabase/student_account_status.sql). */
+  account_status?: "active" | "inactive" | "blocked" | null;
   created_at?: string;
   updated_at?: string;
 };
