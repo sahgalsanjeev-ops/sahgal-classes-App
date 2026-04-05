@@ -1,0 +1,26 @@
+---
+description: Production deployment, custom domain, and PWA — do not break paths or registration
+alwaysApply: true
+---
+
+# Production and PWA (Sahgal Classes)
+
+## Deployment
+
+- **Vercel project:** `sahgal-classes-app-6kq9`
+- **Live domain:** `sahgalclasses.com` (custom domain; treat as production)
+
+## PWA — do not break without explicit user request
+
+- **`public/manifest.json`** — keep valid JSON; `start_url`, `display`, `icons` paths matter for installability.
+- **`public/sw.js`** — service worker at site root **`/sw.js`** (Vite copies `public/` to build root). Do not rename or move without updating **`index.html`** registration.
+- **`index.html`** — preserve:
+  - `<link rel="manifest" href="/manifest.json" />`
+  - `theme-color` and **`apple-touch-icon`** (`/icon-192.png`)
+  - **Favicon:** `/icon-192.png`
+  - **Service worker registration** script that calls `navigator.serviceWorker.register('/sw.js')`
+
+## UI / code changes
+
+- Prefer **`/public/...` assets** referenced as root paths (`/icon-192.png`, `/logo.png`, etc.) so production and PWA caching stay consistent.
+- Avoid replacing **`index.html`** head blocks for PWA/favicon with framework-only meta unless the user asks to migrate PWA setup.
