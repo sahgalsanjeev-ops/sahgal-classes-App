@@ -5,20 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
     <title>Sahgal Classes</title>
-    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="description" content="Best Online Coaching for Excellence in Education" />
     <meta name="author" content="Sahgal Classes" />
 
     <!-- Ye PWA ke liye hai -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#ffffff" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/logo.png" />
 
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js').then(function(res) {
+          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(function(reg) {
             console.log('SW Registered');
+            reg.update();
           }).catch(function(err) {
             console.log('SW Failed', err);
           });

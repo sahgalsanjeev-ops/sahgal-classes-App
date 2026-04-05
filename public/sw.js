@@ -1,8 +1,7 @@
 /**
- * Sahgal Classes PWA — network-first for HTML navigations so new Vite deploys
- * are not stuck behind a stale cached index.html (avoids white screen after release).
+ * Sahgal Classes PWA — network-first for HTML so deploys never serve stale index + wrong hashed JS.
  */
-const CACHE_NAME = "sahgal-classes-v2";
+const CACHE_NAME = "sahgal-classes-v3";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -19,11 +18,19 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+function isHtmlRequest(request) {
+  if (request.mode === "navigate") return true;
+  const dest = request.destination;
+  if (dest === "document") return true;
+  const accept = request.headers.get("accept") || "";
+  return accept.includes("text/html");
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
 
-  if (request.mode === "navigate") {
+  if (isHtmlRequest(request)) {
     event.respondWith(
       fetch(request)
         .then((response) => {
