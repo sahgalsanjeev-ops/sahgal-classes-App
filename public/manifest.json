@@ -4,8 +4,8 @@
   "description": "Official App for Sahgal Classes Students",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f5a623",
-  "theme_color": "#f5a623",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "/icon-192.png",
