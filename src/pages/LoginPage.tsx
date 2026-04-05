@@ -143,16 +143,9 @@ const LoginPage = () => {
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5 }}
-          className="w-20 h-20 rounded-2xl bg-white flex items-center justify-center mb-4 overflow-hidden shadow-md ring-1 ring-slate-900/10"
+          className="w-20 h-20 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-sm flex items-center justify-center mb-4"
         >
-          <img
-            src="/logo.png"
-            alt="SAHGAL CLASSES"
-            className="h-full w-full object-contain p-2.5 select-none"
-            width={80}
-            height={80}
-            decoding="async"
-          />
+          <span className="text-3xl font-extrabold text-primary-foreground">SC</span>
         </motion.div>
         <h1 className="text-xl font-bold text-primary-foreground">SAHGAL CLASSES</h1>
         <p className="text-primary-foreground/80 text-sm mt-1">Mathematics Excellence</p>
