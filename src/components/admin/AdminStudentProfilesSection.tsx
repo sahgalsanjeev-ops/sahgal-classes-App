@@ -128,7 +128,6 @@ const AdminStudentProfilesSection = () => {
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">No profiles yet.</p>
       ) : (
-        {/* overflow-hidden ko hata kar overflow-x-auto likhein */}
 <div className="rounded-xl border border-border bg-card shadow-sm overflow-x-auto">
           <Table>
           <TableHeader>
