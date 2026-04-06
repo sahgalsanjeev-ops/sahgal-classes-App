@@ -38,80 +38,44 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // 1. Agar Supabase nahi hai, toh turant loading khatam karo
     if (!supabase) {
       setIsAuthenticated(false);
       setChecking(false);
       return;
     }
 
-    const checkAuthAndStatus = async () => {
+    const runCheck = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session?.user) {
-          setIsAuthenticated(false);
-        } else {
-          // Status check karein lekin isse app ko rokne mat dein
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('account_status')
-            .eq('id', session.user.id)
-            .single();
-
-          if (profile?.account_status === 'blocked') {
-            await supabase.auth.signOut();
-            setIsAuthenticated(false);
-          } else {
-            setIsAuthenticated(true);
-          }
-        }
+        setIsAuthenticated(Boolean(session));
       } catch (err) {
-        console.error("Auth check error:", err);
+        console.error("Auth error:", err);
         setIsAuthenticated(false);
       } finally {
-        // Yeh line HAR HALAT mein chalegi taaki loading screen hate
-        setChecking(false);
+        // Yeh line hamesha loading khatam karegi
+        setChecking(false); 
       }
     };
 
-    // Initial load check
-    checkAuthAndStatus();
+    runCheck();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') {
-        setIsAuthenticated(false);
-        setChecking(false);
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        await checkAuthAndStatus();
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(Boolean(session));
+      setChecking(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Jab tak checking true hai, tab tak loading dikhao
   if (checking) {
-    return (
-      <div className="min-h-screen grid place-items-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-sm font-medium text-muted-foreground animate-pulse">
-            Dashboard load ho raha hai...
-          </p>
-        </div>
-      </div>
-    );
+    return <div className="min-h-screen grid place-items-center text-muted-foreground">Loading...</div>;
   }
 
-  // Agar login nahi hai, toh login page par bhejein
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  
   return <>{children}</>;
 };
+
 
 
 /** Logged-in app areas that require students to finish onboarding (super-admins bypass). */
