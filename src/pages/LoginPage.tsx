@@ -102,31 +102,50 @@ const LoginPage = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.verifyOtp({
+
+    // 1. Pehle OTP verify karein
+    const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
       email: email.trim(),
       token: otp,
       type: "email",
     });
-    if (error) {
+
+    if (verifyError) {
       setLoading(false);
-      const lowerMsg = error.message.toLowerCase();
-      const isExpired = lowerMsg.includes("expired");
-      const isInvalid = lowerMsg.includes("invalid");
+      const lowerMsg = verifyError.message.toLowerCase();
       toast({
         variant: "destructive",
-        title: isExpired ? "OTP expired" : isInvalid ? "Incorrect OTP" : "OTP verification failed",
-        description: isExpired
-          ? "Code expired. Tap Resend code and use the latest one."
-          : isInvalid
-            ? "Please check the code and try again."
-            : error.message,
+        title: lowerMsg.includes("expired") ? "OTP expired" : "Incorrect OTP",
+        description: verifyError.message,
       });
       return;
     }
+
+    // 2. User ki profile check karein ki wo Blocked toh nahi hai
+    const user = verifyData.user;
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_status')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.account_status === 'blocked') {
+        setLoading(false);
+        await supabase.auth.signOut(); // Turant logout kar dein
+        toast({
+          variant: "destructive",
+          title: "Account Blocked",
+          description: "Aapka account admin dwara block kar diya gaya hai. Kripya coaching se sampark karein.",
+        });
+        setOtp(""); 
+        return;
+      }
+    }
+
+    // 3. Agar blocked nahi hai, toh dashboard par bhejein
     setLoading(false);
-    const { data: userData } = await supabase.auth.getUser();
-    const u = userData.user;
-    const path = await getPostLoginPath(u?.id, u?.email);
+    const path = await getPostLoginPath(user?.id, user?.email);
     navigate(path, { replace: true });
   };
 
