@@ -147,20 +147,14 @@ const AdminStudentProfilesSection = () => {
                 const current = (r.account_status ?? "active") as StudentAccountStatus | "active";
                 return (
                   <TableRow key={r.id}>
-                    <TableCell className="pl-3 py-2 align-top">
-  <button
-    type="button"
-    className="text-sm font-semibold text-primary text-left hover:underline line-clamp-2"
-    onClick={() => navigate(`/admin/student/${r.id}`)}
-  >
-    {r.full_name}
-  </button>
-  
-  <p className="text-[11px] text-muted-foreground truncate sm:hidden mt-0.5">
-    {r.email ?? r.id}
-  </p>
-</TableCell>
-
+                    <TableCell className="pl-3 py-2 align-top text-sm font-semibold text-primary">
+                    <button
+                       type="button"
+                       className="text-sm font-semibold text-primary text-left hover:underline line-clamp-2"
+                        onClick={() => navigate(`/admin/student/${r.id}`)}
+                        >
+                      {r.full_name}
+                      </button>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell py-2 align-top text-xs text-muted-foreground truncate">
                       {r.email ?? "—"}
