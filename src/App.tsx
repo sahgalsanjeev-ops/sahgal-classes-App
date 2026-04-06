@@ -44,54 +44,82 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    const checkUserStatus = async (session: any) => {
-      if (session?.user) {
-        // Database se status check karein
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('account_status')
-          .eq('id', session.user.id)
-          .single();
-
-        // Agar student 'blocked' hai, toh turant logout kar dein
-        if (profile?.account_status === 'blocked') {
-          await supabase.auth.signOut();
+    const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [checking, setChecking] = useState(true);
+    
+      useEffect(() => {
+        if (!supabase) {
           setIsAuthenticated(false);
-          alert("Aapka account block kar diya gaya hai.");
-        } else {
-          setIsAuthenticated(true);
+          setChecking(false);
+          return;
         }
-      } else {
-        setIsAuthenticated(false);
+    
+        const verifyStatus = async (session: any) => {
+          try {
+            if (session?.user) {
+              // Profile check with error handling
+              const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('account_status')
+                .eq('id', session.user.id)
+                .single();
+    
+              if (error) {
+                console.error("Status check error:", error);
+                setIsAuthenticated(true); // Error aane par app load hone dein
+              } else if (profile?.account_status === 'blocked') {
+                await supabase.auth.signOut();
+                setIsAuthenticated(false);
+                alert("Aapka account block kar diya gaya hai.");
+              } else {
+                setIsAuthenticated(true);
+              }
+            } else {
+              setIsAuthenticated(false);
+            }
+          } catch (err) {
+            console.error("Auth check failed:", err);
+            setIsAuthenticated(false);
+          } finally {
+            // Yeh line hamesha chalegi, loading khatam karne ke liye
+            setChecking(false);
+          }
+        };
+    
+        const initAuth = async () => {
+          const { data: { session } } = await supabase.auth.getSession();
+          await verifyStatus(session);
+        };
+    
+        initAuth();
+    
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+          if (_event === 'SIGNED_OUT') {
+            setIsAuthenticated(false);
+            setChecking(false);
+          } else {
+            await verifyStatus(session);
+          }
+        });
+    
+        return () => subscription.unsubscribe();
+      }, []);
+    
+      if (checking) {
+        return (
+          <div className="min-h-screen grid place-items-center text-muted-foreground bg-background">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              <p>Application load ho rahi hai...</p>
+            </div>
+          </div>
+        );
       }
-      setChecking(false);
+    
+      if (!isSupabaseConfigured || !isAuthenticated) return <Navigate to="/login" replace />;
+      return <>{children}</>;
     };
-
-    // Initial check
-    const run = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      await checkUserStatus(session);
-    };
-
-    void run();
-
-    // Jab login/logout ho ya session change ho
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      await checkUserStatus(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (checking) {
-    return <div className="min-h-screen grid place-items-center text-muted-foreground">Loading...</div>;
-  }
-
-  if (!isSupabaseConfigured || !isAuthenticated) return <Navigate to="/login" replace />;
-  return <>{children}</>;
-};
 
 /** Logged-in app areas that require students to finish onboarding (super-admins bypass). */
 const StudentAppRoute = ({ children }: { children: React.ReactNode }) => (
