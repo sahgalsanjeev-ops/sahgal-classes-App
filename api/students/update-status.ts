@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireSuperAdmin } from "../lib/requireAdmin";
+import { requireSuperAdmin } from "../lib/requireAdmin.js";
 
 const ALLOWED = new Set(["active", "inactive", "blocked"]);
 
