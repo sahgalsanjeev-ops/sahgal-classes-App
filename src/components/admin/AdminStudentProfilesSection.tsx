@@ -155,8 +155,8 @@ const AdminStudentProfilesSection = () => {
                         >
                       {r.full_name}
                       </button>
-                      <p> className="text-[11px] text-muted-foreground truncate lg:hidden mt-0.5"
-                           {r.email ?? r.id} 
+                      <p className="text-[11px] text-muted-foreground truncate lg:hidden mt-0.5"><p>
+                         {r.email ?? r.id} 
                            </p>
                     </TableCell>
                     <TableCell className="py-2 align-top text-xs capitalize hidden md:table-cell">
