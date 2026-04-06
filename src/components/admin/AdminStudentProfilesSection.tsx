@@ -155,9 +155,9 @@ const AdminStudentProfilesSection = () => {
                         >
                       {r.full_name}
                       </button>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell py-2 align-top text-xs text-muted-foreground truncate">
-                      {r.email ?? "—"}
+                      <p> className="text-[11px] text-muted-foreground truncate lg:hidden mt-0.5"
+                           {r.email ?? r.id} 
+                           </p>
                     </TableCell>
                     <TableCell className="py-2 align-top text-xs capitalize hidden md:table-cell">
                       {r.class_selection.replace("_", " ")}
