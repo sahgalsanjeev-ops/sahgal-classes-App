@@ -44,18 +44,42 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    const run = async () => {
-      const { data } = await supabase.auth.getSession();
-      setIsAuthenticated(Boolean(data.session));
+    const checkUserStatus = async (session: any) => {
+      if (session?.user) {
+        // Database se status check karein
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('account_status')
+          .eq('id', session.user.id)
+          .single();
+
+        // Agar student 'blocked' hai, toh turant logout kar dein
+        if (profile?.account_status === 'blocked') {
+          await supabase.auth.signOut();
+          setIsAuthenticated(false);
+          alert("Aapka account block kar diya gaya hai.");
+        } else {
+          setIsAuthenticated(true);
+        }
+      } else {
+        setIsAuthenticated(false);
+      }
       setChecking(false);
+    };
+
+    // Initial check
+    const run = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      await checkUserStatus(session);
     };
 
     void run();
 
+    // Jab login/logout ho ya session change ho
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(Boolean(session));
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      await checkUserStatus(session);
     });
 
     return () => subscription.unsubscribe();
