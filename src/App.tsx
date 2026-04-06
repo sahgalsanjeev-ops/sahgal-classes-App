@@ -38,17 +38,22 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    // 1. Agar Supabase nahi hai, toh turant loading khatam karo
     if (!supabase) {
       setIsAuthenticated(false);
       setChecking(false);
       return;
     }
 
-    const verifyStatus = async (session: any) => {
+    const checkAuthAndStatus = async () => {
       try {
-        if (session?.user) {
-          // Status check with error handling
-          const { data: profile, error } = await supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.user) {
+          setIsAuthenticated(false);
+        } else {
+          // Status check karein lekin isse app ko rokne mat dein
+          const { data: profile } = await supabase
             .from('profiles')
             .select('account_status')
             .eq('id', session.user.id)
@@ -60,48 +65,51 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
           } else {
             setIsAuthenticated(true);
           }
-        } else {
-          setIsAuthenticated(false);
         }
       } catch (err) {
-        console.error("Auth check failed:", err);
+        console.error("Auth check error:", err);
         setIsAuthenticated(false);
       } finally {
-        setChecking(false); // Yeh line hamesha chalegi loading hatane ke liye
+        // Yeh line HAR HALAT mein chalegi taaki loading screen hate
+        setChecking(false);
       }
     };
 
-    const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      await verifyStatus(session);
-    };
+    // Initial load check
+    checkAuthAndStatus();
 
-    void initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (_event === 'SIGNED_OUT') {
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false);
         setChecking(false);
-      } else {
-        await verifyStatus(session);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        await checkAuthAndStatus();
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  // Jab tak checking true hai, tab tak loading dikhao
   if (checking) {
     return (
-      <div className="min-h-screen grid place-items-center text-muted-foreground bg-background">
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p>Application load ho rahi hai...</p>
+      <div className="min-h-screen grid place-items-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm font-medium text-muted-foreground animate-pulse">
+            Dashboard load ho raha hai...
+          </p>
         </div>
       </div>
     );
   }
 
-  if (!isSupabaseConfigured || !isAuthenticated) return <Navigate to="/login" replace />;
+  // Agar login nahi hai, toh login page par bhejein
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
   return <>{children}</>;
 };
 
