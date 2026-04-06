@@ -123,11 +123,10 @@ const AdminStudentProfilesSection = () => {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Tap a name for full profile. Actions call secured APIs; add <code className="rounded bg-muted px-1">SUPABASE_SERVICE_ROLE_KEY</code>{" "}
-        on Vercel and run <code className="rounded bg-muted px-1">supabase/student_account_status.sql</code> once.
+        Tap a name for full profile. Actions call secured APIs; add <code className="rounded bg-muted px-1">SUPABASE_SERVICE_ROLE_KEY</code> on Vercel.
       </p>
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No profiles yet. Students appear after they submit registration.</p>
+        <p className="text-sm text-muted-foreground">No profiles yet.</p>
       ) : (
         <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
           <Table>
@@ -147,91 +146,50 @@ const AdminStudentProfilesSection = () => {
                 const current = (r.account_status ?? "active") as StudentAccountStatus | "active";
                 return (
                   <TableRow key={r.id}>
-                    <TableCell className="pl-3 py-2 align-top">
-                      <button
-                        type="button"
-                        className="text-sm font-semibold text-primary text-left hover:underline line-clamp-2"
-                        onClick={() => navigate(`/admin/student/${r.id}`)}
-                      >
-                        {r.full_name}
-                      </button>
-                      <p className="text-[11px] text-muted-foreground truncate sm:hidden mt-0.5">{r.email ?? r.id}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 sm:hidden">
-                        {r.class_selection.replace("_", " ")}
-                        {r.onboarding_completed ? "" : " · Incomplete"}
-                      </p>
+                    <TableCell className="pl-3 py-2 align-top text-sm font-semibold text-primary">
+                      {r.full_name}
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell py-2 align-top text-xs text-muted-foreground max-w-[10rem] truncate">
+                    <TableCell className="hidden sm:table-cell py-2 align-top text-xs text-muted-foreground truncate">
                       {r.email ?? "—"}
                     </TableCell>
                     <TableCell className="py-2 align-top text-xs capitalize hidden md:table-cell">
                       {r.class_selection.replace("_", " ")}
-                      {!r.onboarding_completed && <span className="block text-amber-600">Incomplete</span>}
                     </TableCell>
                     <TableCell className="py-2 align-top">
                       {editId === r.id ? (
                         <div className="flex flex-col gap-1 min-w-[6rem]">
-                          <Input
-                            value={rollDraft}
-                            onChange={(e) => setRollDraft(e.target.value)}
-                            placeholder="Roll"
-                            className="h-8 font-mono text-xs"
-                          />
+                          <Input value={rollDraft} onChange={(e) => setRollDraft(e.target.value)} className="h-8 text-xs" />
                           <div className="flex gap-1">
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-7 text-xs gap-1"
-                              disabled={savingId === r.id}
-                              onClick={() => void saveRoll(r.id)}
-                            >
-                              <Save size={12} /> Save
-                            </Button>
-                            <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditId(null)}>
-                              Cancel
-                            </Button>
+                            <Button size="sm" className="h-7 text-xs" onClick={() => void saveRoll(r.id)} disabled={savingId === r.id}>Save</Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditId(null)}>X</Button>
                           </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-1">
-                          <span className="font-mono text-xs font-semibold">{r.roll_no ?? "—"}</span>
-                          <Button type="button" size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => startEdit(r)}>
-                            <Pencil size={14} />
-                          </Button>
+                          <span className="font-mono text-xs">{r.roll_no ?? "—"}</span>
+                          <Button variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(r)}><Pencil size={12}/></Button>
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="py-2 align-top text-xs font-medium">{statusLabel(r.account_status)}</TableCell>
+                    <TableCell className="py-2 align-top text-xs font-medium">
+                      <span className={cn("px-2 py-0.5 rounded-full text-[10px]", current === "active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
+                        {statusLabel(r.account_status)}
+                      </span>
+                    </TableCell>
                     <TableCell className="py-2 pr-3 align-top">
-                      <div className="flex flex-wrap gap-1 max-w-[14rem]">
+                      <div className="flex gap-2">
                         <button
                           type="button"
-                          disabled={busy || current === "active"}
-                          className={cn(actionBtnClass, "bg-green-500 hover:bg-green-600")}
-                          onClick={() => void handleStatus(r.id, "active")}
+                          disabled={busy}
+                          className={cn(actionBtnClass, current === "active" ? "bg-orange-500 hover:bg-orange-600" : "bg-green-600 hover:bg-green-700")}
+                          onClick={() => void handleStatus(r.id, current === "active" ? "blocked" : "active")}
                         >
-                          Active
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy || current === "inactive"}
-                          className={cn(actionBtnClass, "bg-gray-500 hover:bg-gray-600")}
-                          onClick={() => void handleStatus(r.id, "inactive")}
-                        >
-                          Inactive
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy || current === "blocked"}
-                          className={cn(actionBtnClass, "bg-orange-500 hover:bg-orange-600")}
-                          onClick={() => void handleStatus(r.id, "blocked")}
-                        >
-                          Block
+                          {current === "active" ? "Block" : "Unblock"}
                         </button>
                         <button
                           type="button"
                           disabled={busy}
-                          className={cn(actionBtnClass, "bg-red-500 hover:bg-red-600")}
+                          className={cn(actionBtnClass, "bg-red-600 hover:bg-red-700")}
                           onClick={() => void handleRemove(r)}
                         >
                           Remove
