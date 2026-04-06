@@ -128,18 +128,20 @@ const AdminStudentProfilesSection = () => {
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">No profiles yet.</p>
       ) : (
-        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        {/* overflow-hidden ko hata kar overflow-x-auto likhein */}
+<div className="rounded-xl border border-border bg-card shadow-sm overflow-x-auto">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="min-w-[7rem] pl-3">Student</TableHead>
-                <TableHead className="min-w-[8rem] hidden sm:table-cell">Email</TableHead>
-                <TableHead className="w-[5.5rem] hidden md:table-cell">Class</TableHead>
-                <TableHead className="w-[7rem]">Roll</TableHead>
-                <TableHead className="w-[5.5rem]">Status</TableHead>
-                <TableHead className="min-w-[11rem] pr-3">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
+          <TableHeader>
+  <TableRow>
+    <TableHead className="min-w-[7rem] pl-3">Student</TableHead>
+    <TableHead className="min-w-[8rem] hidden lg:table-cell">Email</TableHead>
+    <TableHead className="w-[5.5rem] hidden xl:table-cell">Class</TableHead>
+    <TableHead className="w-[7rem]">Roll</TableHead>
+    {/* Status aur Actions ko hamesha dikhane ke liye hidden hata diya */}
+    <TableHead className="w-[6rem] text-center">Status</TableHead>
+    <TableHead className="min-w-[10rem] pr-3 text-right">Actions</TableHead>
+  </TableRow>
+</TableHeader>
             <TableBody>
               {rows.map((r) => {
                 const busy = actionId === r.id;
