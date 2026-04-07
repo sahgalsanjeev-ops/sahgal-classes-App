@@ -142,12 +142,25 @@ const LoginPage = () => {
         return;
       }
     }
+    // 3. Single Device Login Logic (Yahan jodiye)
+    if (user) {
+      const newSessionId = Math.random().toString(36).substring(7);
+      localStorage.setItem('current_session_id', newSessionId);
 
-    // 3. Agar blocked nahi hai, toh dashboard par bhejein
+      // Database mein naya session ID update karein
+      await supabase
+        .from('profiles')
+        .update({ current_session_id: newSessionId })
+        .eq('id', user.id);
+    }
+
+    // 4. Purana navigate wala code (Jo pehle se hai)
     setLoading(false);
     const path = await getPostLoginPath(user?.id, user?.email);
     navigate(path, { replace: true });
   };
+
+  
 
   const resetEmail = () => {
     setOtpSent(false);
