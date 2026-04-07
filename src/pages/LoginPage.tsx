@@ -47,121 +47,81 @@ const LoginPage = () => {
     return () => window.clearInterval(timer);
   }, [otpSent, resendCountdown]);
 
-  const handleSendOTP = async () => {
-    if (!email.includes("@")) return;
-    if (!supabase || !isSupabaseConfigured) {
-      toast({
-        variant: "destructive",
-        title: "Supabase not configured",
-        description: "Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.",
-      });
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        shouldCreateUser: true,
-        // Keeps deep-link redirects on your site if the email still includes a magic link.
-        emailRedirectTo: `${window.location.origin}/login`,
-      },
-    });
-    if (error) {
-      setLoading(false);
-      setOtpSent(false);
-      setResendCountdown(0);
-      const msg = error.message.toLowerCase();
-      const rateLimited = msg.includes("rate limit") || msg.includes("too many");
-      toast({
-        variant: "destructive",
-        title: rateLimited ? "Email limit reached" : "Unable to send OTP",
-        description: rateLimited
-          ? "Supabase caps how many auth emails your project can send per hour. Wait a while, tap Resend less often while testing, or check Dashboard → Authentication → Rate Limits (custom SMTP on Pro+ can help)."
-          : error.message,
-      });
-      return;
-    }
-    setLoading(false);
-    setOtpSent(true);
-    setOtp("");
-    setResendCountdown(RESEND_SECONDS);
-    toast({
-      title: "Code sent",
-      description: `Check ${email} for your verification code.`,
-    });
-  };
-
   const handleVerifyOTP = async () => {
     if (!isCompleteOtp(otp)) return;
     if (!supabase || !isSupabaseConfigured) {
       toast({
         variant: "destructive",
-        title: "Supabase not configured",
-        description: "Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.",
+        title: "Config Error",
+        description: "Supabase properly set nahi hai.",
       });
       return;
     }
+  
+    // Box ko lock karein (Loading start)
     setLoading(true);
-
-    // 1. Pehle OTP verify karein
-    const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: otp,
-      type: "email",
-    });
-
-    if (verifyError) {
-      setLoading(false);
-      const lowerMsg = verifyError.message.toLowerCase();
+  
+    try {
+      // 1. OTP Check karein
+      const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: otp,
+        type: "email",
+      });
+  
+      if (verifyError) throw verifyError;
+  
+      const user = verifyData.user;
+      if (user) {
+        // 2. Profile Check (Blocked status ke liye)
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('account_status')
+          .eq('id', user.id)
+          .single();
+  
+        if (profile?.account_status === 'blocked') {
+          await supabase.auth.signOut();
+          setLoading(false); // <--- Yahan unlock karna zaroori hai
+          toast({
+            variant: "destructive",
+            title: "Account Blocked",
+            description: "Aapka account block hai.",
+          });
+          setOtp(""); 
+          return;
+        }
+  
+        // 3. Single Device Login Logic
+        const newSessionId = Math.random().toString(36).substring(7);
+        localStorage.setItem('current_session_id', newSessionId);
+  
+        // Session update (Isme error aaye toh bhi app login hone degi)
+        await supabase
+          .from('profiles')
+          .update({ current_session_id: newSessionId })
+          .eq('id', user.id);
+      }
+  
+      // 4. Sab sahi hai, Dashboard par bhejein
+      const path = await getPostLoginPath(user?.id, user?.email);
+      setLoading(false); // <--- Unlock
+      navigate(path, { replace: true });
+  
+    } catch (error: any) {
+      // KUCH BHI GALAT HO, TOH YAHAN BOX UNLOCK HO JAYEGA
+      setLoading(false); 
+      console.error("Login Error:", error.message);
       toast({
         variant: "destructive",
-        title: lowerMsg.includes("expired") ? "OTP expired" : "Incorrect OTP",
-        description: verifyError.message,
+        title: "Login Failed",
+        description: error.message || "OTP galat hai ya server busy hai.",
       });
-      return;
     }
-
-    // 2. User ki profile check karein ki wo Blocked toh nahi hai
-    const user = verifyData.user;
-    if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('account_status')
-        .eq('id', user.id)
-        .single();
-
-      if (profile?.account_status === 'blocked') {
-        setLoading(false);
-        await supabase.auth.signOut(); // Turant logout kar dein
-        toast({
-          variant: "destructive",
-          title: "Account Blocked",
-          description: "Aapka account admin dwara block kar diya gaya hai. Kripya coaching se sampark karein.",
-        });
-        setOtp(""); 
-        return;
-      }
-    }
-    // 3. Single Device Login Logic (Yahan jodiye)
-    if (user) {
-      const newSessionId = Math.random().toString(36).substring(7);
-      localStorage.setItem('current_session_id', newSessionId);
-
-      // Database mein naya session ID update karein
-      await supabase
-        .from('profiles')
-        .update({ current_session_id: newSessionId })
-        .eq('id', user.id);
-    }
-
-    // 4. Purana navigate wala code (Jo pehle se hai)
-    setLoading(false);
-    const path = await getPostLoginPath(user?.id, user?.email);
-    navigate(path, { replace: true });
   };
 
-  
 
+  
   const resetEmail = () => {
     setOtpSent(false);
     setOtp("");
@@ -246,7 +206,7 @@ const LoginPage = () => {
               <InputOTP
                 maxLength={otpMaxLength}
                 inputMode="numeric"
-                pattern={/^\d+$/}
+                pattern="^\d+$"
                 value={otp}
                 disabled={!otpSent}
                 onChange={(value) => setOtp(value.replace(/\D/g, ""))}
