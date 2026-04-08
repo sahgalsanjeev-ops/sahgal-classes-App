@@ -30,6 +30,7 @@ export type HomeworkRecord = {
   studentRollNo?: string;
   homeworkTitle: string;
   status: HomeworkStatus;
+  incompleteDetails?: string;
 };
 
 export type TestMarkRecord = {

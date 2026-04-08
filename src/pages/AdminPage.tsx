@@ -553,13 +553,13 @@ const BatchManager = ({
     return rec ?? null;
   };
 
-  const hwStatusForStudent = (student: StudentProfile) => {
+  const hwRecordForStudent = (student: StudentProfile) => {
     if (!selectedBatch || !hwRecordTitle.trim()) return null;
     const t = hwRecordTitle.trim();
     const rec = selectedBatch.homeworkRecords.find(
       (r) => r.studentEmail.toLowerCase() === student.email.toLowerCase() && r.homeworkTitle.trim() === t,
     );
-    return rec?.status ?? null;
+    return rec ?? null;
   };
 
   const setAttendanceQuick = (student: StudentProfile, status: "Present" | "Absent" | "Late", lateTime?: string) => {
@@ -637,7 +637,7 @@ const BatchManager = ({
     setTestMarkDraft({});
   }, [selectedBatchId]);
 
-  const setHomeworkQuick = (student: StudentProfile, status: HomeworkStatus) => {
+  const setHomeworkQuick = (student: StudentProfile, status: HomeworkStatus, details?: string) => {
     const title = hwRecordTitle.trim();
     if (!title) {
       toast({
@@ -664,6 +664,7 @@ const BatchManager = ({
             studentRollNo: student.rollNo,
             homeworkTitle: title,
             status,
+            incompleteDetails: details,
           },
         ],
       };
@@ -1167,7 +1168,7 @@ const BatchManager = ({
                 ) : (
                   <div className="space-y-1">
                     {selectedBatch.students.map((s) => {
-                      const current = hwStatusForStudent(s);
+                      const current = hwRecordForStudent(s);
                       return (
                         <div
                           key={s.id}
@@ -1180,29 +1181,39 @@ const BatchManager = ({
                           </div>
                           <div className="flex gap-1.5 items-center shrink-0">
                             {(["Done", "Not done", "Incomplete"] as const).map((st) => {
-                              const selected = current === st;
-                              let label = "P";
-                              if (st === "Not done") label = "A";
-                              if (st === "Incomplete") label = "Late";
+                              const selected = current?.status === st;
+                              const label = st === "Done" ? "D" : st === "Not done" ? "N" : "I";
                               
                               return (
-                                <Button
-                                  key={st}
-                                  type="button"
-                                  size="xs"
-                                  variant={
-                                    !selected ? "outline" : st === "Not done" ? "destructive" : "default"
-                                  }
-                                  className={cn(
-                                    "h-8 font-bold text-xs",
-                                    st === "Incomplete" ? "min-w-[3rem]" : "w-8",
-                                    selected && st === "Incomplete" && "bg-amber-600 text-white hover:bg-amber-600/90 border-amber-600",
+                                <div key={st} className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    size="xs"
+                                    variant={
+                                      !selected ? "outline" : st === "Not done" ? "destructive" : "default"
+                                    }
+                                    className={cn(
+                                      "w-8 h-8 font-bold text-xs",
+                                      selected && st === "Incomplete" && "bg-amber-600 text-white hover:bg-amber-600/90 border-amber-600",
+                                    )}
+                                    onClick={() => {
+                                      if (st === "Incomplete") {
+                                        const details = prompt("Enter % completed (e.g. 50%)", current?.incompleteDetails || "");
+                                        if (details !== null) setHomeworkQuick(s, st, details);
+                                      } else {
+                                        setHomeworkQuick(s, st);
+                                      }
+                                    }}
+                                    title={st}
+                                  >
+                                    {label}
+                                  </Button>
+                                  {st === "Incomplete" && selected && current?.incompleteDetails && (
+                                    <span className="text-[10px] font-mono font-medium text-amber-600 bg-amber-50 px-1 rounded border border-amber-100 truncate max-w-[40px]">
+                                      {current.incompleteDetails}
+                                    </span>
                                   )}
-                                  onClick={() => setHomeworkQuick(s, st)}
-                                  title={st}
-                                >
-                                  {label}
-                                </Button>
+                                </div>
                               );
                             })}
                           </div>
