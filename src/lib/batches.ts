@@ -18,7 +18,8 @@ export type AttendanceRecord = {
   studentEmail: string;
   studentRollNo?: string;
   date: string;
-  status: "Present" | "Absent";
+  status: "Present" | "Absent" | "Late";
+  lateTime?: string;
 };
 
 export type HomeworkStatus = "Done" | "Not done" | "Incomplete";

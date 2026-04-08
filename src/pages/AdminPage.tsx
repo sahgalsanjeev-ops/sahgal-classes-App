@@ -550,7 +550,7 @@ const BatchManager = ({
     const rec = selectedBatch.attendanceRecords.find(
       (r) => r.studentEmail.toLowerCase() === student.email.toLowerCase() && r.date.trim() === d,
     );
-    return rec?.status ?? null;
+    return rec ?? null;
   };
 
   const hwStatusForStudent = (student: StudentProfile) => {
@@ -562,7 +562,7 @@ const BatchManager = ({
     return rec?.status ?? null;
   };
 
-  const setAttendanceQuick = (student: StudentProfile, status: "Present" | "Absent") => {
+  const setAttendanceQuick = (student: StudentProfile, status: "Present" | "Absent" | "Late", lateTime?: string) => {
     const date = attendanceDateKey;
     updateSelectedBatch((batch) => {
       const filtered = batch.attendanceRecords.filter(
@@ -578,6 +578,7 @@ const BatchManager = ({
             studentRollNo: student.rollNo,
             date,
             status,
+            lateTime,
           },
         ],
       };
@@ -1084,39 +1085,57 @@ const BatchManager = ({
                 {selectedBatch.students.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Add students first.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {selectedBatch.students.map((s) => {
                       const current = attendanceForStudentOnDate(s);
                       return (
                         <div
                           key={s.id}
-                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2"
+                          className="flex items-center justify-between gap-2 py-1.5 border-b border-border/40 last:border-0"
                         >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-foreground">
-                              <span className="text-primary">Roll {s.rollNo}</span> — {s.name}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground truncate">{s.email}</p>
+                          <div className="min-w-0 flex-1 truncate">
+                            <span className="text-xs font-semibold text-foreground uppercase truncate">
+                              {s.name} - <span className="text-primary/70">{s.rollNo}</span>
+                            </span>
                           </div>
-                          <div className="flex gap-2 shrink-0">
+                          <div className="flex gap-1.5 items-center shrink-0">
                             <Button
                               type="button"
-                              size="sm"
-                              variant={current === "Present" ? "default" : "outline"}
-                              className={cn("flex-1 sm:flex-none min-w-[5.5rem]", current === "Present" && "ring-2 ring-primary/30")}
+                              size="xs"
+                              variant={current?.status === "Present" ? "default" : "outline"}
+                              className={cn("w-8 h-8 font-bold", current?.status === "Present" && "ring-2 ring-primary/30")}
                               onClick={() => setAttendanceQuick(s, "Present")}
                             >
-                              Present
+                              P
                             </Button>
                             <Button
                               type="button"
-                              size="sm"
-                              variant={current === "Absent" ? "destructive" : "outline"}
-                              className={cn("flex-1 sm:flex-none min-w-[5.5rem]", current === "Absent" && "ring-2 ring-destructive/30")}
+                              size="xs"
+                              variant={current?.status === "Absent" ? "destructive" : "outline"}
+                              className={cn("w-8 h-8 font-bold", current?.status === "Absent" && "ring-2 ring-destructive/30")}
                               onClick={() => setAttendanceQuick(s, "Absent")}
                             >
-                              Absent
+                              A
                             </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant={current?.status === "Late" ? "secondary" : "outline"}
+                                className={cn("px-2.5 h-8 font-bold min-w-[3rem]", current?.status === "Late" && "ring-2 ring-secondary/30 bg-amber-500 text-white hover:bg-amber-600 border-amber-500")}
+                                onClick={() => {
+                                  const time = prompt("Enter late time (e.g. 10m)", current?.lateTime || "");
+                                  if (time !== null) setAttendanceQuick(s, "Late", time);
+                                }}
+                              >
+                                Late
+                              </Button>
+                              {current?.status === "Late" && current.lateTime && (
+                                <span className="text-[10px] font-mono font-medium text-amber-600 bg-amber-50 px-1 rounded border border-amber-100 truncate max-w-[40px]">
+                                  {current.lateTime}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -1146,38 +1165,43 @@ const BatchManager = ({
                 {selectedBatch.students.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Add students first.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {selectedBatch.students.map((s) => {
                       const current = hwStatusForStudent(s);
                       return (
                         <div
                           key={s.id}
-                          className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2"
+                          className="flex items-center justify-between gap-2 py-1.5 border-b border-border/40 last:border-0"
                         >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground">
-                              <span className="text-primary">Roll {s.rollNo}</span> — {s.name}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground truncate">{s.email}</p>
+                          <div className="min-w-0 flex-1 truncate">
+                            <span className="text-xs font-semibold text-foreground uppercase truncate">
+                              {s.name} - <span className="text-primary/70">{s.rollNo}</span>
+                            </span>
                           </div>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex gap-1.5 items-center shrink-0">
                             {(["Done", "Not done", "Incomplete"] as const).map((st) => {
                               const selected = current === st;
+                              let label = "P";
+                              if (st === "Not done") label = "A";
+                              if (st === "Incomplete") label = "Late";
+                              
                               return (
                                 <Button
                                   key={st}
                                   type="button"
-                                  size="sm"
+                                  size="xs"
                                   variant={
                                     !selected ? "outline" : st === "Not done" ? "destructive" : "default"
                                   }
                                   className={cn(
-                                    "flex-1 min-w-[4.5rem] text-xs",
+                                    "h-8 font-bold text-xs",
+                                    st === "Incomplete" ? "min-w-[3rem]" : "w-8",
                                     selected && st === "Incomplete" && "bg-amber-600 text-white hover:bg-amber-600/90 border-amber-600",
                                   )}
                                   onClick={() => setHomeworkQuick(s, st)}
+                                  title={st}
                                 >
-                                  {st === "Not done" ? "Not done" : st}
+                                  {label}
                                 </Button>
                               );
                             })}
