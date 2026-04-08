@@ -520,6 +520,12 @@ const BatchManager = ({
   const [resourceTitle, setResourceTitle] = useState("");
   const [resourceLink, setResourceLink] = useState("");
   const [resourceType, setResourceType] = useState<"videos" | "homework" | "studyMaterialPdfs" | "testPapers">("videos");
+  
+  const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
+  const [editResourceTitle, setEditResourceTitle] = useState("");
+  const [editResourceLink, setEditResourceLink] = useState("");
+  const [editResourceType, setEditResourceType] = useState<"videos" | "homework" | "studyMaterialPdfs" | "testPapers">("videos");
+
   const [attendanceSessionDate, setAttendanceSessionDate] = useState(() => new Date());
   const [hwRecordTitle, setHwRecordTitle] = useState("");
   const [testTitle, setTestTitle] = useState("");
@@ -688,6 +694,45 @@ const BatchManager = ({
       return next;
     });
     toast({ title: "Saved", description: `HW record saved for ${student.name}.` });
+  };
+
+  const saveEditedResource = () => {
+    if (!editingResourceId || !selectedBatch) return;
+    if (!editResourceTitle.trim()) return;
+
+    updateSelectedBatch((batch) => {
+      // Remove from old type list if type changed, or update in current list
+      let nextBatch = { ...batch };
+      
+      // We need to find which list it was in and remove it
+      const types = ["videos", "homework", "studyMaterialPdfs", "testPapers"] as const;
+      types.forEach(t => {
+        nextBatch[t] = nextBatch[t].filter(r => r.id !== editingResourceId);
+      });
+
+      // Add to the new/current type list
+      nextBatch[editResourceType] = [
+        ...nextBatch[editResourceType],
+        { id: editingResourceId, title: editResourceTitle.trim(), link: editResourceLink.trim() }
+      ];
+
+      return nextBatch;
+    });
+
+    setEditingResourceId(null);
+    toast({ title: "Updated", description: "Resource updated successfully." });
+  };
+
+  const deleteResource = (id: string, type: string) => {
+    if (!selectedBatch) return;
+    const ok = window.confirm("Delete this resource?");
+    if (!ok) return;
+
+    updateSelectedBatch((batch) => ({
+      ...batch,
+      [type]: batch[type as keyof Batch].filter((r: any) => r.id !== id)
+    }));
+    toast({ title: "Deleted", description: "Resource removed." });
   };
 
   const saveEditedStudent = () => {
@@ -1050,6 +1095,81 @@ const BatchManager = ({
                 >
                   Add Content
                 </Button>
+
+                <div className="mt-6 space-y-4">
+                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Added Content</p>
+                  
+                  {(["videos", "homework", "studyMaterialPdfs", "testPapers"] as const).map((type) => {
+                    const items = selectedBatch[type];
+                    if (items.length === 0) return null;
+                    
+                    return (
+                      <div key={type} className="space-y-2">
+                        <p className="text-[10px] font-semibold text-primary/70 uppercase">
+                          {type === "videos" ? "Videos" : type === "homework" ? "HW" : type === "studyMaterialPdfs" ? "PDFs" : "Tests"}
+                        </p>
+                        <div className="grid gap-2">
+                          {items.map((item) => (
+                            <div key={item.id} className="rounded-lg border border-border bg-muted/20 p-2 text-xs">
+                              {editingResourceId === item.id ? (
+                                <div className="space-y-2">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} placeholder="Title" className="h-8" />
+                                    <Input value={editResourceLink} onChange={(e) => setEditResourceLink(e.target.value)} placeholder="Link" className="h-8" />
+                                    <select
+                                      value={editResourceType}
+                                      onChange={(e) => setEditResourceType(e.target.value as any)}
+                                      className="rounded-md border border-input bg-background px-3 py-1 text-xs h-8 sm:col-span-2"
+                                    >
+                                      <option value="videos">Videos</option>
+                                      <option value="homework">HW</option>
+                                      <option value="studyMaterialPdfs">PDFs</option>
+                                      <option value="testPapers">Tests</option>
+                                    </select>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button size="xs" className="flex-1" onClick={saveEditedResource}><Check size={12} className="mr-1" /> Save</Button>
+                                    <Button size="xs" variant="outline" className="flex-1" onClick={() => setEditingResourceId(null)}><X size={12} className="mr-1" /> Cancel</Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-medium truncate">{item.title}</p>
+                                    <p className="text-[10px] text-muted-foreground truncate opacity-70">{item.link}</p>
+                                  </div>
+                                  <div className="flex gap-1">
+                                    <Button
+                                      size="xs"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0"
+                                      onClick={() => {
+                                        setEditingResourceId(item.id);
+                                        setEditResourceTitle(item.title);
+                                        setEditResourceLink(item.link || "");
+                                        setEditResourceType(type);
+                                      }}
+                                    >
+                                      <Pencil size={12} />
+                                    </Button>
+                                    <Button
+                                      size="xs"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                      onClick={() => deleteResource(item.id, type)}
+                                    >
+                                      <Trash2 size={12} />
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </AccordionContent>
             </AccordionItem>
 
@@ -1102,6 +1222,51 @@ const BatchManager = ({
                     updates the row.
                   </p>
                 </div>
+
+                {selectedBatch.attendanceRecords.length > 0 && (
+                  <div className="space-y-2 mt-4">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Attendance Sessions</p>
+                    <div className="flex flex-wrap gap-2">
+                      {Array.from(new Set(selectedBatch.attendanceRecords.map(r => r.date))).sort((a, b) => {
+                        const dateA = parseDdMmYyyy(a) || new Date(0);
+                        const dateB = parseDdMmYyyy(b) || new Date(0);
+                        return dateB.getTime() - dateA.getTime();
+                      }).map(date => (
+                        <div key={date} className="flex items-center gap-1 bg-muted/30 rounded-md border border-border p-1 pr-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const parsed = parseDdMmYyyy(date);
+                              if (parsed) setAttendanceSessionDate(parsed);
+                            }}
+                            className={cn(
+                              "px-2 py-1 text-[10px] font-semibold rounded transition-colors",
+                              attendanceDateKey === date ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                            )}
+                          >
+                            {date}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ok = window.confirm(`Delete all attendance for ${date}?`);
+                              if (!ok) return;
+                              updateSelectedBatch(batch => ({
+                                ...batch,
+                                attendanceRecords: batch.attendanceRecords.filter(r => r.date !== date)
+                              }));
+                              toast({ title: "Deleted", description: `Attendance for ${date} removed.` });
+                            }}
+                            className="text-muted-foreground hover:text-destructive p-0.5"
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {selectedBatch.students.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Add students first.</p>
                 ) : (
@@ -1182,6 +1347,44 @@ const BatchManager = ({
                     Enter one title, then mark each student with Done, Not done, or Incomplete. Tapping again updates the same student for this homework.
                   </p>
                 </div>
+
+                {selectedBatch.homeworkRecords.length > 0 && (
+                  <div className="space-y-2 mt-4">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Previous HW Records</p>
+                    <div className="flex flex-wrap gap-2">
+                      {Array.from(new Set(selectedBatch.homeworkRecords.map(r => r.homeworkTitle))).map(title => (
+                        <div key={title} className="flex items-center gap-1 bg-muted/30 rounded-md border border-border p-1 pr-2">
+                          <button
+                            type="button"
+                            onClick={() => setHwRecordTitle(title)}
+                            className={cn(
+                              "px-2 py-1 text-[10px] font-semibold rounded transition-colors",
+                              hwRecordTitle === title ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                            )}
+                          >
+                            {title}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ok = window.confirm(`Delete all records for HW "${title}"?`);
+                              if (!ok) return;
+                              updateSelectedBatch(batch => ({
+                                ...batch,
+                                homeworkRecords: batch.homeworkRecords.filter(r => r.homeworkTitle !== title)
+                              }));
+                              toast({ title: "Deleted", description: `HW "${title}" records removed.` });
+                            }}
+                            className="text-muted-foreground hover:text-destructive p-0.5"
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {selectedBatch.students.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Add students first.</p>
                 ) : (
@@ -1333,6 +1536,49 @@ const BatchManager = ({
                     />
                   </div>
                 </div>
+
+                {selectedBatch.testMarksRecords.length > 0 && (
+                  <div className="space-y-2 mt-4">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Previous Test Records</p>
+                    <div className="flex flex-wrap gap-2">
+                      {Array.from(new Set(selectedBatch.testMarksRecords.map(r => r.testTitle))).map(title => {
+                        const firstRec = selectedBatch.testMarksRecords.find(r => r.testTitle === title);
+                        return (
+                          <div key={title} className="flex items-center gap-1 bg-muted/30 rounded-md border border-border p-1 pr-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTestTitle(title);
+                                if (firstRec) setTestMaxMarks(firstRec.maxMarks);
+                              }}
+                              className={cn(
+                                "px-2 py-1 text-[10px] font-semibold rounded transition-colors",
+                                testTitle === title ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                              )}
+                            >
+                              {title}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const ok = window.confirm(`Delete all records for test "${title}"?`);
+                                if (!ok) return;
+                                updateSelectedBatch(batch => ({
+                                  ...batch,
+                                  testMarksRecords: batch.testMarksRecords.filter(r => r.testTitle !== title)
+                                }));
+                                toast({ title: "Deleted", description: `Test "${title}" records removed.` });
+                              }}
+                              className="text-muted-foreground hover:text-destructive p-0.5"
+                            >
+                              <Trash2 size={10} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {selectedBatch.students.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Add students first.</p>
