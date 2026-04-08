@@ -155,17 +155,23 @@ const LoginPage = () => {
           localStorage.setItem('last_session_id', newSessionId);
     
           // Session update
-          await supabase
+          const { error: updateError } = await supabase
             .from('profiles')
             .update({ last_session_id: newSessionId })
             .eq('id', user.id);
+
+          if (updateError) {
+            console.error("Failed to update session ID:", updateError.message);
+            // We can still proceed, but it might break one-device login for this session
+          }
         }
       }
   
       // 4. Sab sahi hai, Dashboard par bhejein
       const path = await getPostLoginPath(user?.id, user?.email);
       setLoading(false); // <--- Unlock
-      navigate(path, { replace: true });
+      // Small delay to ensure DB replication and state are ready
+      setTimeout(() => navigate(path, { replace: true }), 100);
   
     } catch (error: any) {
       // KUCH BHI GALAT HO, TOH YAHAN BOX UNLOCK HO JAYEGA

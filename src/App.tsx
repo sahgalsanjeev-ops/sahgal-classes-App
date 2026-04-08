@@ -39,13 +39,39 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    // Disable right-click
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    // Disable keyboard shortcuts (F12, Ctrl+Shift+I, etc.)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
+        (e.ctrlKey && e.key === 'U')
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!supabase) {
       setIsAuthenticated(false);
       setChecking(false);
       return;
     }
 
-    const runCheck = async () => {
+    const runCheck = async (retryCount = 0) => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
@@ -58,20 +84,35 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
           // One Device Login Check
           const localSessionId = localStorage.getItem('last_session_id');
-          const { data: profile } = await supabase
+          const { data: profile, error } = await supabase
             .from('profiles')
             .select('last_session_id')
             .eq('id', session.user.id)
             .maybeSingle(); 
 
+          if (error) {
+            console.error("Error fetching profile for session check:", error.message);
+            // If it's a database error, we probably shouldn't log them out immediately,
+            // but for security, we could. Let's just log it for now.
+            return;
+          }
+
           // Strict check: If profile has a session ID, it MUST match the local one.
           // If profile.last_session_id is null, it's likely a new user or legacy session, we let it pass.
           if (profile?.last_session_id && profile.last_session_id !== localSessionId) {
+            // Handle race condition: during a fresh login, runCheck might run BEFORE LoginPage.tsx 
+            // finishes updating the database. Let's retry once after a short delay.
+            if (retryCount < 1) {
+              setTimeout(() => void runCheck(retryCount + 1), 1500);
+              return;
+            }
+
             console.warn("Session ID mismatch. This device is not the active session. Logging out...");
             await supabase.auth.signOut();
             localStorage.removeItem('last_session_id');
             setIsAuthenticated(false);
           } else {
+            // Only consider authenticated if the session ID is set correctly (or not required yet)
             setIsAuthenticated(true);
           }
         } else {
@@ -87,6 +128,14 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     runCheck();
 
+    // Check on tab focus or wake up
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isAuthenticated) {
+        void runCheck();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     // Fallback heartbeat check (every 1 minute)
     const heartbeat = setInterval(() => {
       if (isAuthenticated) {
@@ -99,8 +148,9 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const setupSubscription = async (userId: string) => {
       if (profileSubscription) profileSubscription.unsubscribe();
 
+      // Ensure the channel name is truly unique to this user
       profileSubscription = supabase
-        .channel(`public:profiles:id=eq.${userId}`)
+        .channel(`session_monitor_${userId}`)
         .on(
           'postgres_changes',
           {
@@ -115,14 +165,23 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             
             // Log if session ID changed on another device
             if (newSessionId && newSessionId !== localSessionId) {
-              console.warn("Session changed on another device. Logging out...");
-              void supabase.auth.signOut();
-              localStorage.removeItem('last_session_id');
-              setIsAuthenticated(false);
+              console.warn("New session detected elsewhere. Logging out this device...");
+              void supabase.auth.signOut().then(() => {
+                localStorage.removeItem('last_session_id');
+                setIsAuthenticated(false);
+              });
             }
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log("Realtime session monitor active for user:", userId);
+          } else if (status === 'CLOSED') {
+            console.warn("Realtime session monitor closed.");
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error("Realtime session monitor failed to initialize.");
+          }
+        });
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -152,6 +211,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return () => {
       subscription.unsubscribe();
       clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (profileSubscription) profileSubscription.unsubscribe();
     };
   }, []);
