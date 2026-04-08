@@ -34,10 +34,10 @@ const GlobalWatermark = () => {
 
   return (
     <div
-      className="fixed z-[9999] pointer-events-none touch-none select-none transition-all duration-1000 ease-in-out opacity-[0.08]"
+      className="fixed z-[9999] pointer-events-none touch-none select-none transition-all duration-1000 ease-in-out opacity-25"
       style={{ top: `${position.top}%`, left: `${position.left}%` }}
     >
-      <p className="text-black dark:text-white text-[10px] font-bold tracking-widest uppercase">
+      <p className="text-slate-500 dark:text-slate-400 text-[10px] font-bold tracking-widest uppercase drop-shadow-sm">
         {profile.name} • {profile.mobile}
       </p>
     </div>
