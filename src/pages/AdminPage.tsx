@@ -525,6 +525,7 @@ const BatchManager = ({
   const [testTitle, setTestTitle] = useState("");
   const [testMaxMarks, setTestMaxMarks] = useState("");
   const [testMarkDraft, setTestMarkDraft] = useState<Record<string, string>>({});
+  const [hwMarkDraft, setHwMarkDraft] = useState<Record<string, { status: HomeworkStatus; details?: string }>>({});
 
   const attendanceDateKey = useMemo(() => format(attendanceSessionDate, "dd-MM-yyyy"), [attendanceSessionDate]);
 
@@ -554,6 +555,12 @@ const BatchManager = ({
   };
 
   const hwRecordForStudent = (student: StudentProfile) => {
+    if (hwMarkDraft[student.id]) {
+      return {
+        status: hwMarkDraft[student.id].status,
+        incompleteDetails: hwMarkDraft[student.id].details,
+      };
+    }
     if (!selectedBatch || !hwRecordTitle.trim()) return null;
     const t = hwRecordTitle.trim();
     const rec = selectedBatch.homeworkRecords.find(
@@ -635,9 +642,13 @@ const BatchManager = ({
     setTestTitle("");
     setTestMaxMarks("");
     setTestMarkDraft({});
+    setHwMarkDraft({});
   }, [selectedBatchId]);
 
-  const setHomeworkQuick = (student: StudentProfile, status: HomeworkStatus, details?: string) => {
+  const saveHomeworkForStudent = (student: StudentProfile) => {
+    const draft = hwMarkDraft[student.id];
+    if (!draft) return;
+
     const title = hwRecordTitle.trim();
     if (!title) {
       toast({
@@ -647,6 +658,7 @@ const BatchManager = ({
       });
       return;
     }
+
     updateSelectedBatch((batch) => {
       const filtered = batch.homeworkRecords.filter(
         (r) =>
@@ -663,12 +675,19 @@ const BatchManager = ({
             studentEmail: student.email.toLowerCase(),
             studentRollNo: student.rollNo,
             homeworkTitle: title,
-            status,
-            incompleteDetails: details,
+            status: draft.status,
+            incompleteDetails: draft.details,
           },
         ],
       };
     });
+
+    setHwMarkDraft((prev) => {
+      const next = { ...prev };
+      delete next[student.id];
+      return next;
+    });
+    toast({ title: "Saved", description: `HW record saved for ${student.name}.` });
   };
 
   const saveEditedStudent = () => {
@@ -1169,6 +1188,11 @@ const BatchManager = ({
                   <div className="space-y-1">
                     {selectedBatch.students.map((s) => {
                       const current = hwRecordForStudent(s);
+                      const isEditing = hwMarkDraft[s.id] !== undefined;
+                      const savedRecord = selectedBatch.homeworkRecords.find(
+                        (r) => r.studentEmail.toLowerCase() === s.email.toLowerCase() && r.homeworkTitle.trim() === hwRecordTitle.trim()
+                      );
+
                       return (
                         <div
                           key={s.id}
@@ -1179,14 +1203,49 @@ const BatchManager = ({
                               {s.name} - <span className="text-primary/70">{s.rollNo}</span>
                             </span>
                           </div>
-                          <div className="flex gap-1.5 items-center shrink-0">
-                            {(["Done", "Not done", "Incomplete"] as const).map((st) => {
-                              const selected = current?.status === st;
-                              const label = st === "Done" ? "D" : st === "Not done" ? "N" : "I";
-                              
-                              return (
-                                <div key={st} className="flex items-center gap-1">
+
+                          {!isEditing ? (
+                            <div className="flex items-center gap-2">
+                              {savedRecord ? (
+                                <span className={cn(
+                                  "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase",
+                                  savedRecord.status === "Done" ? "bg-green-100 text-green-700" :
+                                  savedRecord.status === "Not done" ? "bg-red-100 text-red-700" :
+                                  "bg-amber-100 text-amber-700"
+                                )}>
+                                  {savedRecord.status === "Done" ? "D" : savedRecord.status === "Not done" ? "N" : "I"}
+                                  {savedRecord.incompleteDetails && ` (${savedRecord.incompleteDetails})`}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground italic">No record</span>
+                              )}
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={() => {
+                                  setHwMarkDraft((prev) => ({
+                                    ...prev,
+                                    [s.id]: { 
+                                      status: savedRecord?.status || "Done", 
+                                      details: savedRecord?.incompleteDetails || "" 
+                                    }
+                                  }));
+                                }}
+                              >
+                                <Pencil size={12} />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex gap-1.5 items-center shrink-0">
+                              {(["Done", "Not done", "Incomplete"] as const).map((st) => {
+                                const selected = hwMarkDraft[s.id]?.status === st;
+                                const label = st === "Done" ? "D" : st === "Not done" ? "N" : "I";
+                                
+                                return (
                                   <Button
+                                    key={st}
                                     type="button"
                                     size="xs"
                                     variant={
@@ -1198,25 +1257,48 @@ const BatchManager = ({
                                     )}
                                     onClick={() => {
                                       if (st === "Incomplete") {
-                                        const details = prompt("Enter % completed (e.g. 50%)", current?.incompleteDetails || "");
-                                        if (details !== null) setHomeworkQuick(s, st, details);
+                                        const details = prompt("Enter % completed (e.g. 50%)", hwMarkDraft[s.id]?.details || "");
+                                        if (details !== null) {
+                                          setHwMarkDraft(prev => ({ ...prev, [s.id]: { status: st, details } }));
+                                        }
                                       } else {
-                                        setHomeworkQuick(s, st);
+                                        setHwMarkDraft(prev => ({ ...prev, [s.id]: { status: st, details: "" } }));
                                       }
                                     }}
                                     title={st}
                                   >
                                     {label}
                                   </Button>
-                                  {st === "Incomplete" && selected && current?.incompleteDetails && (
-                                    <span className="text-[10px] font-mono font-medium text-amber-600 bg-amber-50 px-1 rounded border border-amber-100 truncate max-w-[40px]">
-                                      {current.incompleteDetails}
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
+                                );
+                              })}
+                              <div className="flex items-center gap-1 ml-1 border-l pl-2">
+                                <Button
+                                  type="button"
+                                  size="xs"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => saveHomeworkForStudent(s)}
+                                >
+                                  <Check size={14} className="text-green-600" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="xs"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => {
+                                    setHwMarkDraft((prev) => {
+                                      const next = { ...prev };
+                                      delete next[s.id];
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  <X size={14} className="text-red-600" />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1259,6 +1341,9 @@ const BatchManager = ({
                     {selectedBatch.students.map((s) => {
                       const obtained = obtainedDisplay(s);
                       const pct = computeTestPercentage(obtained, testMaxMarks);
+                      const savedRecord = findTestRecord(s);
+                      const isEditing = testMarkDraft[s.id] !== undefined;
+
                       return (
                         <div
                           key={s.id}
@@ -1270,45 +1355,85 @@ const BatchManager = ({
                             </span>
                           </div>
                           
-                          <div className="flex gap-1 items-center shrink-0">
-                            <div className="w-14 shrink-0">
-                              <Input
-                                value={obtained}
-                                onChange={(e) =>
-                                  setTestMarkDraft((prev) => ({ ...prev, [s.id]: e.target.value }))
-                                }
-                                onBlur={() => {
-                                  if (obtained.trim()) saveTestMarkForStudent(s);
+                          {!isEditing ? (
+                            <div className="flex items-center gap-2">
+                              {savedRecord ? (
+                                <span className="text-[10px] font-mono font-bold bg-primary/5 text-primary px-2 py-0.5 rounded border border-primary/10">
+                                  {savedRecord.marksObtained} / {savedRecord.maxMarks} ({savedRecord.percentage})
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground italic">No marks</span>
+                              )}
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={() => {
+                                  setTestMarkDraft((prev) => ({
+                                    ...prev,
+                                    [s.id]: savedRecord?.marksObtained || ""
+                                  }));
                                 }}
-                                placeholder="Obt"
-                                className="h-8 text-[11px] px-1.5 font-mono text-center"
-                                inputMode="decimal"
-                              />
+                              >
+                                <Pencil size={12} />
+                              </Button>
                             </div>
-                            <div className="w-12 shrink-0">
-                              <div className="h-8 flex items-center justify-center rounded-md border border-input bg-muted/30 px-1 text-[11px] font-mono text-muted-foreground">
-                                {testMaxMarks || "—"}
+                          ) : (
+                            <div className="flex gap-1 items-center shrink-0">
+                              <div className="w-14 shrink-0">
+                                <Input
+                                  value={obtained}
+                                  onChange={(e) =>
+                                    setTestMarkDraft((prev) => ({ ...prev, [s.id]: e.target.value }))
+                                  }
+                                  placeholder="Obt"
+                                  className="h-8 text-[11px] px-1.5 font-mono text-center"
+                                  inputMode="decimal"
+                                  autoFocus
+                                />
+                              </div>
+                              <div className="w-12 shrink-0">
+                                <div className="h-8 flex items-center justify-center rounded-md border border-input bg-muted/30 px-1 text-[11px] font-mono text-muted-foreground">
+                                  {testMaxMarks || "—"}
+                                </div>
+                              </div>
+                              <div className="w-14 shrink-0">
+                                <div className={cn(
+                                  "h-8 flex items-center justify-center rounded-md border border-input px-1 text-[10px] font-mono tabular-nums",
+                                  pct !== "—" ? "bg-primary/5 text-primary font-bold" : "bg-muted/20 text-muted-foreground"
+                                )}>
+                                  {pct}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 ml-1 border-l pl-2">
+                                <Button 
+                                  type="button" 
+                                  size="xs" 
+                                  variant="ghost" 
+                                  className="h-8 w-8 p-0" 
+                                  onClick={() => saveTestMarkForStudent(s)}
+                                >
+                                  <Check size={14} className="text-green-600" />
+                                </Button>
+                                <Button 
+                                  type="button" 
+                                  size="xs" 
+                                  variant="ghost" 
+                                  className="h-8 w-8 p-0" 
+                                  onClick={() => {
+                                    setTestMarkDraft((prev) => {
+                                      const next = { ...prev };
+                                      delete next[s.id];
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  <X size={14} className="text-red-600" />
+                                </Button>
                               </div>
                             </div>
-                            <div className="w-14 shrink-0">
-                              <div className={cn(
-                                "h-8 flex items-center justify-center rounded-md border border-input px-1 text-[10px] font-mono tabular-nums",
-                                pct !== "—" ? "bg-primary/5 text-primary font-bold" : "bg-muted/20 text-muted-foreground"
-                              )}>
-                                {pct}
-                              </div>
-                            </div>
-                            <Button 
-                              type="button" 
-                              size="xs" 
-                              variant="ghost" 
-                              className="h-8 w-8 p-0" 
-                              onClick={() => saveTestMarkForStudent(s)}
-                              title="Save marks"
-                            >
-                              <Check size={14} className="text-green-600" />
-                            </Button>
-                          </div>
+                          )}
                         </div>
                       );
                     })}
