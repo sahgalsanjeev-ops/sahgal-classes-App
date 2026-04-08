@@ -1,20 +1,41 @@
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useSearchParams, useParams } from "react-router-dom";
 import BrandedVideoPlayer from "@/components/BrandedVideoPlayer";
+import { supabase } from "@/lib/supabase";
+import { fetchProfile } from "@/lib/profiles";
 
 const VideoPage = () => {
   const [searchParams] = useSearchParams();
+  const { videoId } = useParams();
   const title = searchParams.get("title") || "Lecture Video";
+  
+  const [studentInfo, setStudentInfo] = useState({ name: "Student", mobile: "" });
 
-  // Extract video ID from URL path
-  const videoId = window.location.pathname.split("/video/")[1]?.split("?")[0] || "dQw4w9WgXcQ";
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const profile = await fetchProfile(user.id);
+        if (profile) {
+          setStudentInfo({
+            name: profile.full_name,
+            mobile: profile.mobile,
+          });
+        }
+      }
+    };
+    void loadProfile();
+  }, []);
+
+  if (!videoId) return <div className="p-8 text-center text-muted-foreground">Video not found</div>;
 
   return (
     <div className="min-h-screen bg-foreground">
       <BrandedVideoPlayer
         videoId={videoId}
         title={title}
-        studentName="Rahul Sharma"
-        studentMobile="9876543210"
+        studentName={studentInfo.name}
+        studentMobile={studentInfo.mobile}
       />
       
       {/* Video Info */}

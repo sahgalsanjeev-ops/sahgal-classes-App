@@ -1,0 +1,41 @@
+/* Premium Branded Video Player Styles */
+
+.branded-video-container {
+  --plyr-color-main: #3b82f6; /* primary color */
+  --plyr-video-background: #000;
+  --plyr-menu-background: rgba(23, 23, 23, 0.95);
+  --plyr-menu-color: #fff;
+  --plyr-tooltip-background: rgba(23, 23, 23, 0.9);
+  --plyr-tooltip-color: #fff;
+}
+
+/* Hide YouTube-specific elements if they bleed through */
+.plyr__video-embed iframe {
+  transform: scale(1.1); /* Slight scale to hide edges */
+  pointer-events: none; /* Block direct interaction with iframe */
+}
+
+/* Ensure controls stay on top of the overlay */
+.plyr--full-ui.plyr--video .plyr__controls {
+  z-index: 30;
+}
+
+/* Hide Plyr's default YouTube logo if present */
+.plyr__video-embed .plyr__poster {
+  background-size: cover;
+}
+
+/* Hide YouTube Logo and Title via CSS if possible (Plyr handles most) */
+.ytp-chrome-top,
+.ytp-watermark,
+.ytp-youtube-button,
+.ytp-pause-overlay {
+  display: none !important;
+}
+
+/* Prevent text selection and right-click on video area */
+.branded-video-container {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
