@@ -47,20 +47,44 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const runCheck = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        setIsAuthenticated(Boolean(session));
+        
+        if (session?.user) {
+          // One Device Login Check
+          const localSessionId = localStorage.getItem('last_session_id');
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('last_session_id')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profile && profile.last_session_id !== localSessionId) {
+            console.warn("New login detected on another device. Logging out...");
+            await supabase.auth.signOut();
+            localStorage.removeItem('last_session_id');
+            setIsAuthenticated(false);
+          } else {
+            setIsAuthenticated(true);
+          }
+        } else {
+          setIsAuthenticated(false);
+        }
       } catch (err) {
         console.error("Auth error:", err);
         setIsAuthenticated(false);
       } finally {
-        // Yeh line hamesha loading khatam karegi
         setChecking(false); 
       }
     };
 
     runCheck();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(Boolean(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        setIsAuthenticated(true);
+      } else if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false);
+        localStorage.removeItem('last_session_id');
+      }
       setChecking(false);
     });
 

@@ -24,6 +24,7 @@ create table if not exists public.profiles (
   country text,
   pin_code text,
   onboarding_completed boolean not null default false,
+  last_session_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

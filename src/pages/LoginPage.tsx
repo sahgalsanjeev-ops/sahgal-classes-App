@@ -47,6 +47,46 @@ const LoginPage = () => {
     return () => window.clearInterval(timer);
   }, [otpSent, resendCountdown]);
 
+  const handleSendOTP = async () => {
+    if (!email.includes("@")) return;
+    if (!supabase || !isSupabaseConfigured) {
+      toast({
+        variant: "destructive",
+        title: "Config Error",
+        description: "Supabase properly set nahi hai.",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          shouldCreateUser: true,
+        },
+      });
+
+      if (error) throw error;
+
+      setOtpSent(true);
+      setResendCountdown(RESEND_SECONDS);
+      toast({
+        title: "OTP Sent",
+        description: "Check karein apna email.",
+      });
+    } catch (error: any) {
+      console.error("OTP Send Error:", error.message);
+      toast({
+        variant: "destructive",
+        title: "OTP Error",
+        description: error.message || "Email bhejte waqt problem aayi.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleVerifyOTP = async () => {
     if (!isCompleteOtp(otp)) return;
     if (!supabase || !isSupabaseConfigured) {
@@ -82,7 +122,7 @@ const LoginPage = () => {
   
         if (profile?.account_status === 'blocked') {
           await supabase.auth.signOut();
-          setLoading(false); // <--- Yahan unlock karna zaroori hai
+          setLoading(false); 
           toast({
             variant: "destructive",
             title: "Account Blocked",
@@ -93,13 +133,13 @@ const LoginPage = () => {
         }
   
         // 3. Single Device Login Logic
-        const newSessionId = Math.random().toString(36).substring(7);
-        localStorage.setItem('current_session_id', newSessionId);
+        const newSessionId = crypto.randomUUID();
+        localStorage.setItem('last_session_id', newSessionId);
   
-        // Session update (Isme error aaye toh bhi app login hone degi)
+        // Session update
         await supabase
           .from('profiles')
-          .update({ current_session_id: newSessionId })
+          .update({ last_session_id: newSessionId })
           .eq('id', user.id);
       }
   
