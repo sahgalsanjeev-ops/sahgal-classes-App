@@ -118,6 +118,13 @@ const LoginPage = () => {
     setLoading(true);
   
     try {
+      // 0. Pre-generate and store session ID to avoid race conditions with App.tsx
+      const isSuperAdmin = isSuperAdminEmail(email.trim());
+      const newSessionId = !isSuperAdmin ? crypto.randomUUID() : "";
+      if (!isSuperAdmin) {
+        localStorage.setItem('last_session_id', newSessionId);
+      }
+
       // 1. OTP Check karein
       const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
         email: email.trim(),
@@ -125,7 +132,11 @@ const LoginPage = () => {
         type: "email",
       });
   
-      if (verifyError) throw verifyError;
+      if (verifyError) {
+        // If verification fails, clear the local session ID
+        if (!isSuperAdmin) localStorage.removeItem('last_session_id');
+        throw verifyError;
+      }
   
       const user = verifyData.user;
       if (user) {
@@ -138,6 +149,7 @@ const LoginPage = () => {
   
         if (profile?.account_status === 'blocked') {
           await supabase.auth.signOut();
+          if (!isSuperAdmin) localStorage.removeItem('last_session_id');
           setLoading(false); 
           toast({
             variant: "destructive",
@@ -150,10 +162,7 @@ const LoginPage = () => {
   
         // 3. Single Device Login Logic
         // Skip for super-admins
-        if (!isSuperAdminEmail(user.email)) {
-          const newSessionId = crypto.randomUUID();
-          localStorage.setItem('last_session_id', newSessionId);
-    
+        if (!isSuperAdmin) {
           // Session update
           const { error: updateError } = await supabase
             .from('profiles')
@@ -162,7 +171,6 @@ const LoginPage = () => {
 
           if (updateError) {
             console.error("Failed to update session ID:", updateError.message);
-            // We can still proceed, but it might break one-device login for this session
           }
         }
       }

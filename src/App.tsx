@@ -79,10 +79,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
           // Super-admins bypass the one-device rule
           if (isSuperAdminEmail(session.user.email)) {
             setIsAuthenticated(true);
+            setChecking(false);
             return;
           }
 
-          // One Device Login Check
           const localSessionId = localStorage.getItem('last_session_id');
           const { data: profile, error } = await supabase
             .from('profiles')
@@ -92,18 +92,18 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
           if (error) {
             console.error("Error fetching profile for session check:", error.message);
-            // If it's a database error, we probably shouldn't log them out immediately,
-            // but for security, we could. Let's just log it for now.
+            setIsAuthenticated(true); // Don't kick them out on DB errors
+            setChecking(false);
             return;
           }
 
-          // Strict check: If profile has a session ID, it MUST match the local one.
-          // If profile.last_session_id is null, it's likely a new user or legacy session, we let it pass.
+          // Case 1: Database has a session ID, but it doesn't match ours
+          // This could be a new login elsewhere OR a race condition during current login
           if (profile?.last_session_id && profile.last_session_id !== localSessionId) {
             // Handle race condition: during a fresh login, runCheck might run BEFORE LoginPage.tsx 
-            // finishes updating the database. Let's retry once after a short delay.
-            if (retryCount < 1) {
-              setTimeout(() => void runCheck(retryCount + 1), 1500);
+            // finishes updating the database or even setting localStorage.
+            if (retryCount < 3) {
+              setTimeout(() => void runCheck(retryCount + 1), 1000);
               return;
             }
 
@@ -111,8 +111,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             await supabase.auth.signOut();
             localStorage.removeItem('last_session_id');
             setIsAuthenticated(false);
-          } else {
-            // Only consider authenticated if the session ID is set correctly (or not required yet)
+          } 
+          // Case 2: No session ID in DB yet, but we have a session. 
+          // This is fine (new user or legacy).
+          else {
             setIsAuthenticated(true);
           }
         } else {
