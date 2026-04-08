@@ -723,17 +723,17 @@ const BatchManager = ({
     toast({ title: "Updated", description: "Resource updated successfully." });
   };
 
-  const deleteResource = (id: string, type: string) => {
-    if (!selectedBatch) return;
-    const ok = window.confirm("Delete this resource?");
-    if (!ok) return;
-
-    updateSelectedBatch((batch) => ({
-      ...batch,
-      [type]: batch[type as keyof Batch].filter((r: any) => r.id !== id)
-    }));
-    toast({ title: "Deleted", description: "Resource removed." });
-  };
+  const deleteResource = (id: string, type: "videos" | "homework" | "studyMaterialPdfs" | "testPapers") => {
+     if (!selectedBatch) return;
+     const ok = window.confirm("Delete this resource?");
+     if (!ok) return;
+ 
+     updateSelectedBatch((batch) => ({
+       ...batch,
+       [type]: batch[type].filter((r) => r.id !== id)
+     }));
+     toast({ title: "Deleted", description: "Resource removed." });
+   };
 
   const saveEditedStudent = () => {
     if (!editingStudentId || !selectedBatch) return;
