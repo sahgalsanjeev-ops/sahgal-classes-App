@@ -1230,120 +1230,90 @@ const BatchManager = ({
                 Add test record ({selectedBatch.testMarksRecords.length})
               </AccordionTrigger>
               <AccordionContent className="space-y-3 pb-4">
-                <div className="grid grid-cols-1 gap-2">
-                  <Input
-                    value={testTitle}
-                    onChange={(e) => setTestTitle(e.target.value)}
-                    placeholder="Test name (e.g. Unit Test 2 — Algebra)"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    Use the same test name for every student. Set max marks once, then enter each student&apos;s score
-                    and save.
-                  </p>
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-[11px] font-medium text-muted-foreground ml-1">Test Title</label>
+                    <Input
+                      value={testTitle}
+                      onChange={(e) => setTestTitle(e.target.value)}
+                      placeholder="e.g. Unit Test 2"
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="w-24 shrink-0">
+                    <label className="text-[11px] font-medium text-muted-foreground ml-1">Max Marks</label>
+                    <Input
+                      value={testMaxMarks}
+                      onChange={(e) => setTestMaxMarks(e.target.value)}
+                      placeholder="Max"
+                      className="h-9 font-mono"
+                      inputMode="decimal"
+                    />
+                  </div>
                 </div>
 
-                <Tabs defaultValue="marks" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 h-10">
-                    <TabsTrigger value="marks">Max marks</TabsTrigger>
-                    <TabsTrigger value="pct">%</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="marks" className="space-y-3 pt-3 mt-0">
-                    <div>
-                      <label className="text-sm font-medium text-foreground">Maximum marks (whole test)</label>
-                      <Input
-                        value={testMaxMarks}
-                        onChange={(e) => setTestMaxMarks(e.target.value)}
-                        placeholder="e.g. 50"
-                        className="mt-1 font-mono"
-                        inputMode="decimal"
-                      />
-                    </div>
-                    {selectedBatch.students.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Add students first.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {selectedBatch.students.map((s) => {
-                          const obtained = obtainedDisplay(s);
-                          const pct = computeTestPercentage(obtained, testMaxMarks);
-                          return (
-                            <div
-                              key={s.id}
-                              className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2"
-                            >
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-foreground">
-                                  <span className="text-primary">Roll {s.rollNo}</span> — {s.name}
-                                </p>
-                                <p className="text-[11px] text-muted-foreground truncate">{s.email}</p>
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
-                                <div>
-                                  <label className="text-[11px] font-medium text-muted-foreground">Marks obtained</label>
-                                  <Input
-                                    value={obtained}
-                                    onChange={(e) =>
-                                      setTestMarkDraft((prev) => ({ ...prev, [s.id]: e.target.value }))
-                                    }
-                                    placeholder="0"
-                                    className="mt-0.5 font-mono"
-                                    inputMode="decimal"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-[11px] font-medium text-muted-foreground">Max</label>
-                                  <Input
-                                    value={testMaxMarks}
-                                    readOnly
-                                    className="mt-0.5 font-mono bg-muted/50"
-                                    tabIndex={-1}
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-[11px] font-medium text-muted-foreground">% (auto)</label>
-                                  <div className="mt-0.5 h-10 flex items-center rounded-md border border-input bg-muted/40 px-3 text-sm font-mono tabular-nums">
-                                    {pct}
-                                  </div>
-                                </div>
-                              </div>
-                              <Button type="button" size="sm" className="w-full" onClick={() => saveTestMarkForStudent(s)}>
-                                Save
-                              </Button>
+                {selectedBatch.students.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Add students first.</p>
+                ) : (
+                  <div className="space-y-1 mt-4">
+                    {selectedBatch.students.map((s) => {
+                      const obtained = obtainedDisplay(s);
+                      const pct = computeTestPercentage(obtained, testMaxMarks);
+                      return (
+                        <div
+                          key={s.id}
+                          className="flex items-center justify-between gap-2 py-1.5 border-b border-border/40 last:border-0"
+                        >
+                          <div className="min-w-0 flex-1 truncate">
+                            <span className="text-xs font-semibold text-foreground uppercase truncate">
+                              {s.name} - <span className="text-primary/70">{s.rollNo}</span>
+                            </span>
+                          </div>
+                          
+                          <div className="flex gap-1 items-center shrink-0">
+                            <div className="w-14 shrink-0">
+                              <Input
+                                value={obtained}
+                                onChange={(e) =>
+                                  setTestMarkDraft((prev) => ({ ...prev, [s.id]: e.target.value }))
+                                }
+                                onBlur={() => {
+                                  if (obtained.trim()) saveTestMarkForStudent(s);
+                                }}
+                                placeholder="Obt"
+                                className="h-8 text-[11px] px-1.5 font-mono text-center"
+                                inputMode="decimal"
+                              />
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </TabsContent>
-                  <TabsContent value="pct" className="space-y-2 pt-3 mt-0">
-                    <p className="text-[11px] text-muted-foreground">
-                      Percentage is calculated as (marks obtained ÷ max marks) × 100. Edit scores in the &quot;Max
-                      marks&quot; tab.
-                    </p>
-                    {!testTitle.trim() || !testMaxMarks.trim() ? (
-                      <p className="text-xs text-muted-foreground">Enter test name and max marks in the other tab.</p>
-                    ) : selectedBatch.students.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Add students first.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {selectedBatch.students.map((s) => {
-                          const obtained = obtainedDisplay(s);
-                          const pct = computeTestPercentage(obtained, testMaxMarks);
-                          return (
-                            <div
-                              key={s.id}
-                              className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm"
-                            >
-                              <span className="min-w-0 truncate">
-                                <span className="font-semibold text-primary">Roll {s.rollNo}</span> — {s.name}
-                              </span>
-                              <span className="shrink-0 font-mono font-semibold tabular-nums">{pct}</span>
+                            <div className="w-12 shrink-0">
+                              <div className="h-8 flex items-center justify-center rounded-md border border-input bg-muted/30 px-1 text-[11px] font-mono text-muted-foreground">
+                                {testMaxMarks || "—"}
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
+                            <div className="w-14 shrink-0">
+                              <div className={cn(
+                                "h-8 flex items-center justify-center rounded-md border border-input px-1 text-[10px] font-mono tabular-nums",
+                                pct !== "—" ? "bg-primary/5 text-primary font-bold" : "bg-muted/20 text-muted-foreground"
+                              )}>
+                                {pct}
+                              </div>
+                            </div>
+                            <Button 
+                              type="button" 
+                              size="xs" 
+                              variant="ghost" 
+                              className="h-8 w-8 p-0" 
+                              onClick={() => saveTestMarkForStudent(s)}
+                              title="Save marks"
+                            >
+                              <Check size={14} className="text-green-600" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </AccordionContent>
             </AccordionItem>
           </Accordion>
