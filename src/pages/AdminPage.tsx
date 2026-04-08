@@ -64,6 +64,7 @@ const AdminPage = () => {
     | "notices"
     | "catalog"
     | "homeContent"
+    | "addContent"
   >("catalog");
   const [title, setTitle] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
@@ -246,6 +247,14 @@ const AdminPage = () => {
           </button>
           <h2 className="text-base font-bold text-primary-foreground truncate">Admin Panel</h2>
         </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => setActiveTab("addContent")}
+          className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white shrink-0 ml-auto h-8 px-3 gap-1.5"
+        >
+          <Plus size={14} /> Add Content
+        </Button>
       </div>
 
       <div className="px-4 mt-5 space-y-4">
@@ -416,6 +425,117 @@ const AdminPage = () => {
         ) : activeTab === "notices" ? (
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <AdminNoticesSection />
+          </div>
+        ) : activeTab === "addContent" ? (
+          <div className="space-y-4">
+            <div className="bg-card rounded-xl border border-border p-4 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground uppercase tracking-wide flex items-center gap-2">
+                <Plus size={16} className="text-primary" /> Add Content to Batch
+              </h3>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Select Target Batch</label>
+                  <select
+                    value={selectedBatchId}
+                    onChange={(e) => setSelectedBatchId(e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Choose a batch...</option>
+                    {batches.map((batch) => (
+                      <option key={batch.id} value={batch.id}>
+                        {batch.batchName} ({batch.batchCode})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedBatch && (
+                  <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
+                    <p className="text-xs font-semibold text-primary">Adding to: {selectedBatch.batchName}</p>
+                    <p className="text-[10px] text-muted-foreground">{selectedBatch.courseName} | {selectedBatch.timing}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Content Type</label>
+                    <select
+                      value={resourceType}
+                      onChange={(e) => setResourceType(e.target.value as any)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="videos">Course Videos</option>
+                      <option value="homework">HW</option>
+                      <option value="studyMaterialPdfs">Study Material PDF</option>
+                      <option value="testPapers">Test Papers</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Title</label>
+                    <Input value={resourceTitle} onChange={(e) => setResourceTitle(e.target.value)} placeholder="e.g. Chapter 1 Introduction" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Link / Note</label>
+                    <Input value={resourceLink} onChange={(e) => setResourceLink(e.target.value)} placeholder="YouTube link or note" />
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => {
+                    if (!selectedBatchId) {
+                      toast({ variant: "destructive", title: "No batch selected", description: "Please select a batch first." });
+                      return;
+                    }
+                    addResource(resourceType, resourceTitle, resourceLink);
+                    setResourceTitle("");
+                    setResourceLink("");
+                    toast({ title: "Added", description: "Content successfully added to batch." });
+                  }}
+                  disabled={!selectedBatchId || !resourceTitle.trim()}
+                  className="w-full h-11 gap-2"
+                >
+                  <Plus size={16} />
+                  Add to {selectedBatch?.batchName || "Batch"}
+                </Button>
+              </div>
+            </div>
+
+            {selectedBatch && (
+              <div className="bg-card rounded-xl border border-border p-4 shadow-sm space-y-4">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Recently Added in {selectedBatch.batchName}</p>
+                
+                {(["videos", "homework", "studyMaterialPdfs", "testPapers"] as const).map((type) => {
+                  const items = selectedBatch[type];
+                  if (items.length === 0) return null;
+                  
+                  return (
+                    <div key={type} className="space-y-2">
+                      <p className="text-[10px] font-semibold text-primary/70 uppercase">
+                        {type === "videos" ? "Videos" : type === "homework" ? "HW" : type === "studyMaterialPdfs" ? "PDFs" : "Tests"}
+                      </p>
+                      <div className="grid gap-2">
+                        {items.slice(-3).reverse().map((item) => (
+                          <div key={item.id} className="rounded-lg border border-border bg-muted/20 p-2 text-xs flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium truncate">{item.title}</p>
+                            </div>
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-destructive"
+                              onClick={() => deleteResource(item.id, type)}
+                            >
+                              <Trash2 size={12} />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : (
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -1067,38 +1187,11 @@ const BatchManager = ({
               <AccordionTrigger className="text-sm font-semibold py-3 hover:no-underline">
                 <span className="flex items-center gap-2">
                   <NotebookPen size={15} />
-                  Course videos, HW, PDFs &amp; test papers
+                  View batch content
                 </span>
               </AccordionTrigger>
               <AccordionContent className="space-y-3 pb-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <select
-                    value={resourceType}
-                    onChange={(e) => setResourceType(e.target.value as "videos" | "homework" | "studyMaterialPdfs" | "testPapers")}
-                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="videos">Course Videos</option>
-                    <option value="homework">HW</option>
-                    <option value="studyMaterialPdfs">Study Material PDF</option>
-                    <option value="testPapers">Test Papers</option>
-                  </select>
-                  <Input value={resourceTitle} onChange={(e) => setResourceTitle(e.target.value)} placeholder="Title" />
-                  <Input value={resourceLink} onChange={(e) => setResourceLink(e.target.value)} placeholder="Link / note" />
-                </div>
-                <Button
-                  onClick={() => {
-                    addResource(resourceType, resourceTitle, resourceLink);
-                    setResourceTitle("");
-                    setResourceLink("");
-                  }}
-                  className="w-full"
-                >
-                  Add Content
-                </Button>
-
-                <div className="mt-6 space-y-4">
-                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Added Content</p>
-                  
+                <div className="space-y-4">
                   {(["videos", "homework", "studyMaterialPdfs", "testPapers"] as const).map((type) => {
                     const items = selectedBatch[type];
                     if (items.length === 0) return null;
@@ -1169,6 +1262,12 @@ const BatchManager = ({
                       </div>
                     );
                   })}
+                  {selectedBatch.videos.length === 0 && 
+                   selectedBatch.homework.length === 0 && 
+                   selectedBatch.studyMaterialPdfs.length === 0 && 
+                   selectedBatch.testPapers.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic text-center py-4">No content added to this batch yet.</p>
+                  )}
                 </div>
               </AccordionContent>
             </AccordionItem>
