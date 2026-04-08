@@ -64,9 +64,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             .eq('id', session.user.id)
             .maybeSingle(); 
 
-          // Only sign out if BOTH are present and different.
-          if (localSessionId && profile?.last_session_id && profile.last_session_id !== localSessionId) {
-            console.warn("New login detected on another device. Logging out...");
+          // Strict check: If profile has a session ID, it MUST match the local one.
+          // If profile.last_session_id is null, it's likely a new user or legacy session, we let it pass.
+          if (profile?.last_session_id && profile.last_session_id !== localSessionId) {
+            console.warn("Session ID mismatch. This device is not the active session. Logging out...");
             await supabase.auth.signOut();
             localStorage.removeItem('last_session_id');
             setIsAuthenticated(false);
@@ -85,6 +86,13 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     };
 
     runCheck();
+
+    // Fallback heartbeat check (every 1 minute)
+    const heartbeat = setInterval(() => {
+      if (isAuthenticated) {
+        void runCheck();
+      }
+    }, 60000);
 
     let profileSubscription: any = null;
 
@@ -105,7 +113,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             const newSessionId = payload.new.last_session_id;
             const localSessionId = localStorage.getItem('last_session_id');
             
-            if (newSessionId && localSessionId && newSessionId !== localSessionId) {
+            // Log if session ID changed on another device
+            if (newSessionId && newSessionId !== localSessionId) {
               console.warn("Session changed on another device. Logging out...");
               void supabase.auth.signOut();
               localStorage.removeItem('last_session_id');
@@ -142,6 +151,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     return () => {
       subscription.unsubscribe();
+      clearInterval(heartbeat);
       if (profileSubscription) profileSubscription.unsubscribe();
     };
   }, []);
