@@ -471,6 +471,46 @@ const BatchManager = ({
   const [studentRollNo, setStudentRollNo] = useState("");
   const [studentMobile, setStudentMobile] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
+  const [isLookingUp, setIsLookingUp] = useState(false);
+
+  const handleLookup = async (field: "email" | "mobile" | "rollNo", val: string) => {
+    const value = val.trim();
+    if (!supabase || value.length < 4 || isLookingUp) return;
+
+    setIsLookingUp(true);
+    try {
+      let query = supabase.from("profiles").select("roll_no, full_name, mobile, email");
+
+      if (field === "email") {
+        if (!value.includes("@")) return;
+        query = query.eq("email", value.toLowerCase());
+      } else if (field === "mobile") {
+        if (value.length < 10) return;
+        query = query.eq("mobile", value);
+      } else if (field === "rollNo") {
+        query = query.eq("roll_no", value);
+      }
+
+      const { data, error } = await query.maybeSingle();
+      if (error) throw error;
+
+      if (data) {
+        setStudentName(data.full_name || "");
+        setStudentRollNo(data.roll_no || "");
+        setStudentMobile(data.mobile || "");
+        setStudentEmail(data.email || "");
+        toast({
+          title: "Student Found",
+          description: `Details for ${data.full_name} loaded from registration records.`,
+        });
+      }
+    } catch (e) {
+      console.error("Lookup error:", e);
+    } finally {
+      setIsLookingUp(false);
+    }
+  };
+
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [editRoll, setEditRoll] = useState("");
   const [editName, setEditName] = useState("");
@@ -779,11 +819,54 @@ const BatchManager = ({
               </AccordionTrigger>
               <AccordionContent className="space-y-3 pb-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <Input value={studentRollNo} onChange={(e) => setStudentRollNo(e.target.value)} placeholder="Roll no. (unique ID)" />
-                  <Input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Student name" />
-                  <Input value={studentMobile} onChange={(e) => setStudentMobile(e.target.value)} placeholder="Mobile no." />
-                  <Input value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="Email" />
+                  <div className="relative">
+                    <Input
+                      value={studentRollNo}
+                      onChange={(e) => setStudentRollNo(e.target.value)}
+                      onBlur={(e) => handleLookup("rollNo", e.target.value)}
+                      placeholder="Roll no. (unique ID)"
+                    />
+                    {isLookingUp && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      </div>
+                    )}
+                  </div>
+                  <Input
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                    placeholder="Student name"
+                  />
+                  <div className="relative">
+                    <Input
+                      value={studentMobile}
+                      onChange={(e) => setStudentMobile(e.target.value)}
+                      onBlur={(e) => handleLookup("mobile", e.target.value)}
+                      placeholder="Mobile no."
+                    />
+                    {isLookingUp && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <Input
+                      value={studentEmail}
+                      onChange={(e) => setStudentEmail(e.target.value)}
+                      onBlur={(e) => handleLookup("email", e.target.value)}
+                      placeholder="Email"
+                    />
+                    {isLookingUp && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      </div>
+                    )}
+                  </div>
                 </div>
+                <p className="text-[10px] text-primary/80 font-medium">
+                  💡 Tip: Enter Roll No, Mobile, or Email and click out to auto-fill details from registration.
+                </p>
                 <p className="text-[11px] text-muted-foreground">
                   Roll number is the unique reference for this batch—use it when adding attendance, HW, and test records.
                 </p>
