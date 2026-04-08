@@ -27,9 +27,24 @@ const LoginPage = () => {
     if (!supabase) return;
 
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
-        const path = await getPostLoginPath(data.session.user.id, data.session.user.email);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        // One Device Login Check (Same as App.tsx to prevent redirect loop)
+        const localSessionId = localStorage.getItem('last_session_id');
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('last_session_id')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (profile && profile.last_session_id && profile.last_session_id !== localSessionId) {
+          // If session is invalid, don't redirect to dashboard.
+          // We can optionally sign out here too to be clean.
+          console.warn("Invalid session found on Login page. Staying here.");
+          return;
+        }
+
+        const path = await getPostLoginPath(session.user.id, session.user.email);
         navigate(path, { replace: true });
       }
     };
@@ -118,7 +133,7 @@ const LoginPage = () => {
           .from('profiles')
           .select('account_status')
           .eq('id', user.id)
-          .single();
+          .maybeSingle(); // Use maybeSingle to avoid errors for new users
   
         if (profile?.account_status === 'blocked') {
           await supabase.auth.signOut();

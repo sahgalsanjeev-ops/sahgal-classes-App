@@ -55,9 +55,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             .from('profiles')
             .select('last_session_id')
             .eq('id', session.user.id)
-            .single();
+            .maybeSingle(); // Use maybeSingle to avoid errors for new users
 
-          if (profile && profile.last_session_id !== localSessionId) {
+          // Only sign out if BOTH are present and different.
+          // If localSessionId is missing, it's a new login in progress.
+          // If profile.last_session_id is missing, it's a new user or legacy session.
+          if (localSessionId && profile?.last_session_id && profile.last_session_id !== localSessionId) {
             console.warn("New login detected on another device. Logging out...");
             await supabase.auth.signOut();
             localStorage.removeItem('last_session_id');
@@ -80,12 +83,13 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        setIsAuthenticated(true);
+        // When a new sign-in happens, we re-run the check to be sure about the session ID
+        void runCheck();
       } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false);
         localStorage.removeItem('last_session_id');
+        setChecking(false);
       }
-      setChecking(false);
     });
 
     return () => subscription.unsubscribe();
