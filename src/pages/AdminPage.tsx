@@ -11,6 +11,7 @@ import {
   NotebookPen,
   BarChart3,
   Pencil,
+  Trash2,
   Check,
   X,
   Calendar as CalendarIcon,
@@ -950,21 +951,43 @@ const BatchManager = ({
                               <p className="text-[11px] text-muted-foreground mt-0.5 break-all">{s.email}</p>
                               <p className="text-[11px] text-muted-foreground">{s.mobile}</p>
                             </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="shrink-0 gap-1 h-8"
-                              onClick={() => {
-                                setEditingStudentId(s.id);
-                                setEditRoll(s.rollNo);
-                                setEditName(s.name);
-                                setEditMobile(s.mobile);
-                                setEditEmail(s.email);
-                              }}
-                            >
-                              <Pencil size={12} /> Edit
-                            </Button>
+                            <div className="flex gap-2 shrink-0">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0 gap-1 h-8"
+                                onClick={() => {
+                                  setEditingStudentId(s.id);
+                                  setEditRoll(s.rollNo);
+                                  setEditName(s.name);
+                                  setEditMobile(s.mobile);
+                                  setEditEmail(s.email);
+                                }}
+                              >
+                                <Pencil size={12} /> Edit
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0 gap-1 h-8 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                onClick={() => {
+                                  const ok = window.confirm(`Remove student "${s.name}" from this batch?`);
+                                  if (!ok) return;
+                                  updateSelectedBatch((batch) => ({
+                                    ...batch,
+                                    students: batch.students.filter((item) => item.id !== s.id),
+                                  }));
+                                  toast({
+                                    title: "Student Removed",
+                                    description: `${s.name} has been removed from this batch.`,
+                                  });
+                                }}
+                              >
+                                <Trash2 size={12} /> Remove
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>
