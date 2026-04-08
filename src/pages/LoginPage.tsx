@@ -8,6 +8,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { toast } from "@/components/ui/use-toast";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { getPostLoginPath } from "@/lib/profiles";
+import { isSuperAdminEmail } from "@/lib/adminAccess";
 
 const LoginPage = () => {
   const RESEND_SECONDS = 30;
@@ -148,14 +149,17 @@ const LoginPage = () => {
         }
   
         // 3. Single Device Login Logic
-        const newSessionId = crypto.randomUUID();
-        localStorage.setItem('last_session_id', newSessionId);
-  
-        // Session update
-        await supabase
-          .from('profiles')
-          .update({ last_session_id: newSessionId })
-          .eq('id', user.id);
+        // Skip for super-admins
+        if (!isSuperAdminEmail(user.email)) {
+          const newSessionId = crypto.randomUUID();
+          localStorage.setItem('last_session_id', newSessionId);
+    
+          // Session update
+          await supabase
+            .from('profiles')
+            .update({ last_session_id: newSessionId })
+            .eq('id', user.id);
+        }
       }
   
       // 4. Sab sahi hai, Dashboard par bhejein

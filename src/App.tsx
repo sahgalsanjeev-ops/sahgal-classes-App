@@ -8,6 +8,7 @@ import BottomNav from "@/components/BottomNav";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { RequireCompleteStudentProfile } from "@/components/auth/RequireCompleteStudentProfile";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { isSuperAdminEmail } from "@/lib/adminAccess";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import CoursesPage from "./pages/CoursesPage";
@@ -49,17 +50,21 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
+          // Super-admins bypass the one-device rule
+          if (isSuperAdminEmail(session.user.email)) {
+            setIsAuthenticated(true);
+            return;
+          }
+
           // One Device Login Check
           const localSessionId = localStorage.getItem('last_session_id');
           const { data: profile } = await supabase
             .from('profiles')
             .select('last_session_id')
             .eq('id', session.user.id)
-            .maybeSingle(); // Use maybeSingle to avoid errors for new users
+            .maybeSingle(); 
 
           // Only sign out if BOTH are present and different.
-          // If localSessionId is missing, it's a new login in progress.
-          // If profile.last_session_id is missing, it's a new user or legacy session.
           if (localSessionId && profile?.last_session_id && profile.last_session_id !== localSessionId) {
             console.warn("New login detected on another device. Logging out...");
             await supabase.auth.signOut();
@@ -81,18 +86,64 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     runCheck();
 
+    let profileSubscription: any = null;
+
+    const setupSubscription = async (userId: string) => {
+      if (profileSubscription) profileSubscription.unsubscribe();
+
+      profileSubscription = supabase
+        .channel(`public:profiles:id=eq.${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${userId}`,
+          },
+          (payload) => {
+            const newSessionId = payload.new.last_session_id;
+            const localSessionId = localStorage.getItem('last_session_id');
+            
+            if (newSessionId && localSessionId && newSessionId !== localSessionId) {
+              console.warn("Session changed on another device. Logging out...");
+              void supabase.auth.signOut();
+              localStorage.removeItem('last_session_id');
+              setIsAuthenticated(false);
+            }
+          }
+        )
+        .subscribe();
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        // When a new sign-in happens, we re-run the check to be sure about the session ID
         void runCheck();
+        if (!isSuperAdminEmail(session.user.email)) {
+          void setupSubscription(session.user.id);
+        }
       } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false);
         localStorage.removeItem('last_session_id');
+        if (profileSubscription) {
+          profileSubscription.unsubscribe();
+          profileSubscription = null;
+        }
         setChecking(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Initial subscription setup if already logged in
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user && !isSuperAdminEmail(session.user.email)) {
+        void setupSubscription(session.user.id);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      if (profileSubscription) profileSubscription.unsubscribe();
+    };
   }, []);
 
   if (checking) {
