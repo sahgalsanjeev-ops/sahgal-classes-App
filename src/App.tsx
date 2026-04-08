@@ -9,6 +9,7 @@ import { AdminRoute } from "@/components/auth/AdminRoute";
 import { RequireCompleteStudentProfile } from "@/components/auth/RequireCompleteStudentProfile";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { isSuperAdminEmail } from "@/lib/adminAccess";
+import GlobalWatermark from "@/components/GlobalWatermark";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import CoursesPage from "./pages/CoursesPage";
@@ -49,20 +50,36 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       if (
         e.key === 'F12' ||
         (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
-        (e.ctrlKey && e.key === 'U')
+        (e.ctrlKey && e.key === 'U') ||
+        e.key === 'PrintScreen'
       ) {
         e.preventDefault();
+        toast({
+          variant: "destructive",
+          title: "Security Warning",
+          description: "Screenshots are not allowed for security reasons.",
+        });
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        document.body.style.filter = 'blur(15px)';
+      } else {
+        document.body.style.filter = 'none';
       }
     };
 
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [toast]); // Added toast to dependencies since it's used inside handleKeyDown
 
   useEffect(() => {
     if (!supabase) {
@@ -130,13 +147,13 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     runCheck();
 
-    // Check on tab focus or wake up
-    const handleVisibilityChange = () => {
+    // Check on tab focus or wake up (moved session check here as well)
+    const handleAuthVisibility = () => {
       if (document.visibilityState === 'visible' && isAuthenticated) {
         void runCheck();
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleAuthVisibility);
 
     // Fallback heartbeat check (every 1 minute)
     const heartbeat = setInterval(() => {
@@ -213,10 +230,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return () => {
       subscription.unsubscribe();
       clearInterval(heartbeat);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleAuthVisibility);
       if (profileSubscription) profileSubscription.unsubscribe();
     };
-  }, []);
+  }, [isAuthenticated]); // Added isAuthenticated to dependencies for visibility check logic
 
   if (checking) {
     return <div className="min-h-screen grid place-items-center text-muted-foreground">Loading...</div>;
@@ -242,7 +259,8 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <div className="max-w-lg mx-auto bg-background min-h-screen relative shadow-xl">
+        <div className="max-w-lg mx-auto bg-background min-h-screen relative shadow-xl overflow-hidden">
+          <GlobalWatermark />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route
