@@ -34,7 +34,7 @@ const GlobalWatermark = () => {
 
   return (
     <div
-      className="fixed z-[9999] pointer-events-none touch-none select-none transition-all duration-1000 ease-in-out opacity-40"
+      className="fixed z-[9999] pointer-events-none touch-none select-none transition-all duration-1000 ease-in-out opacity-50"
       style={{ top: `${position.top}%`, left: `${position.left}%` }}
     >
       <p className="text-slate-600 dark:text-slate-300 text-[11px] font-black tracking-widest uppercase drop-shadow-md">
