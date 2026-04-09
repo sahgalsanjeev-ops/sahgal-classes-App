@@ -842,6 +842,10 @@ const BatchManager = ({
       });
       return;
     }
+
+    const email = editEmail.trim().toLowerCase();
+    
+    // 1. Update batch in local storage
     updateSelectedBatch((batch) => ({
       ...batch,
       students: batch.students.map((s) =>
@@ -851,11 +855,33 @@ const BatchManager = ({
               rollNo: roll,
               name: editName.trim(),
               mobile: editMobile.trim(),
-              email: editEmail.trim().toLowerCase(),
+              email: email,
             }
           : s,
       ),
     }));
+
+    // 2. Sync with Supabase
+    if (isSupabaseConfigured && supabase) {
+      void (async () => {
+        try {
+          const { error } = await supabase
+            .from("profiles")
+            .update({ 
+              batch_code: selectedBatch.batchCode,
+              roll_no: roll 
+            })
+            .eq("email", email);
+          
+          if (!error) {
+            toast({ title: "Profile Sync", description: "Student's cloud profile updated." });
+          }
+        } catch (e) {
+          console.error("Supabase sync error:", e);
+        }
+      })();
+    }
+
     setEditingStudentId(null);
   };
 
@@ -1023,7 +1049,7 @@ const BatchManager = ({
                   Roll number is the unique reference for this batch—use it when adding attendance, HW, and test records.
                 </p>
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     if (!studentName.trim() || !studentMobile.trim() || !studentEmail.trim() || !studentRollNo.trim()) {
                       toast({
                         variant: "destructive",
@@ -1033,6 +1059,7 @@ const BatchManager = ({
                       return;
                     }
                     const roll = studentRollNo.trim();
+                    const email = studentEmail.trim().toLowerCase();
                     const duplicate = selectedBatch.students.some(
                       (s) => s.rollNo.trim().toLowerCase() === roll.toLowerCase(),
                     );
@@ -1044,6 +1071,8 @@ const BatchManager = ({
                       });
                       return;
                     }
+
+                    // 1. Update batch in local storage
                     updateSelectedBatch((batch) => ({
                       ...batch,
                       students: [
@@ -1053,10 +1082,35 @@ const BatchManager = ({
                           rollNo: roll,
                           name: studentName.trim(),
                           mobile: studentMobile.trim(),
-                          email: studentEmail.trim().toLowerCase(),
+                          email: email,
                         },
                       ],
                     }));
+
+                    // 2. Update student profile in Supabase if exists
+                    if (isSupabaseConfigured && supabase) {
+                      try {
+                        const { error: profileError } = await supabase
+                          .from("profiles")
+                          .update({ 
+                            batch_code: selectedBatch.batchCode,
+                            roll_no: roll 
+                          })
+                          .eq("email", email);
+                        
+                        if (profileError) {
+                          console.warn("Could not update Supabase profile:", profileError.message);
+                        } else {
+                          toast({ 
+                            title: "Profile Sync", 
+                            description: "Student's cloud profile updated with batch info." 
+                          });
+                        }
+                      } catch (e) {
+                        console.error("Supabase update error:", e);
+                      }
+                    }
+
                     setStudentName("");
                     setStudentRollNo("");
                     setStudentMobile("");
