@@ -214,6 +214,18 @@ const AdminPage = () => {
     toast({ title: "Batch created", description: "New batch added successfully." });
   };
 
+  const handleDeleteBatch = (id: string) => {
+    const ok = window.confirm("Are you sure you want to delete this batch? All records for this batch will be lost.");
+    if (!ok) return;
+
+    const next = batches.filter((b) => b.id !== id);
+    updateBatches(next);
+    if (selectedBatchId === id) {
+      setSelectedBatchId("");
+    }
+    toast({ title: "Batch deleted", description: "Batch and its records removed." });
+  };
+
   const updateSelectedBatch = (updater: (batch: Batch) => Batch) => {
     if (!selectedBatch) return;
     const next = batches.map((batch) => (batch.id === selectedBatch.id ? updater(batch) : batch));
@@ -403,6 +415,7 @@ const AdminPage = () => {
             teacherName={teacherName}
             setTeacherName={setTeacherName}
             handleCreateBatch={handleCreateBatch}
+            handleDeleteBatch={handleDeleteBatch}
             addResource={addResource}
             updateSelectedBatch={updateSelectedBatch}
           />
@@ -444,6 +457,7 @@ type BatchManagerProps = {
   teacherName: string;
   setTeacherName: (v: string) => void;
   handleCreateBatch: () => void;
+  handleDeleteBatch: (id: string) => void;
   addResource: (type: "videos" | "homework" | "studyMaterialPdfs" | "testPapers", titleValue: string, linkValue: string) => void;
   updateSelectedBatch: (updater: (batch: Batch) => Batch) => void;
 };
@@ -464,9 +478,17 @@ const BatchManager = ({
   teacherName,
   setTeacherName,
   handleCreateBatch,
+  handleDeleteBatch,
   addResource,
   updateSelectedBatch,
 }: BatchManagerProps) => {
+  const [isEditingBatch, setIsEditingBatch] = useState(false);
+  const [editBatchName, setEditBatchName] = useState("");
+  const [editCourseName, setEditCourseName] = useState("");
+  const [editBatchCode, setEditBatchCode] = useState("");
+  const [editTiming, setEditTiming] = useState("");
+  const [editTeacherName, setEditTeacherName] = useState("");
+
   const [studentName, setStudentName] = useState("");
   const [studentRollNo, setStudentRollNo] = useState("");
   const [studentMobile, setStudentMobile] = useState("");
@@ -484,6 +506,45 @@ const BatchManager = ({
   const [testTitle, setTestTitle] = useState("");
   const [testMaxMarks, setTestMaxMarks] = useState("");
   const [testMarkDraft, setTestMarkDraft] = useState<Record<string, string>>({});
+
+  const startEditingBatch = () => {
+    if (!selectedBatch) return;
+    setEditBatchName(selectedBatch.batchName);
+    setEditCourseName(selectedBatch.courseName);
+    setEditBatchCode(selectedBatch.batchCode);
+    setEditTiming(selectedBatch.timing);
+    setEditTeacherName(selectedBatch.teacherName);
+    setIsEditingBatch(true);
+  };
+
+  const saveBatchEdit = () => {
+    if (!selectedBatch) return;
+    if (!editBatchName.trim() || !editCourseName.trim() || !editBatchCode.trim() || !editTiming.trim() || !editTeacherName.trim()) {
+      toast({ variant: "destructive", title: "Missing fields", description: "All batch details are required." });
+      return;
+    }
+    updateSelectedBatch((batch) => ({
+      ...batch,
+      batchName: editBatchName.trim(),
+      courseName: editCourseName.trim(),
+      batchCode: editBatchCode.trim().toUpperCase(),
+      timing: editTiming.trim(),
+      teacherName: editTeacherName.trim(),
+    }));
+    setIsEditingBatch(false);
+    toast({ title: "Batch updated", description: "Batch details saved successfully." });
+  };
+
+  const removeStudentFromBatch = (studentId: string, studentName: string) => {
+    const ok = window.confirm(`Are you sure you want to remove "${studentName}" from this batch? This will NOT delete their profile from the registration list.`);
+    if (!ok) return;
+
+    updateSelectedBatch((batch) => ({
+      ...batch,
+      students: batch.students.filter((s) => s.id !== studentId),
+    }));
+    toast({ title: "Student removed", description: "Student detached from this batch." });
+  };
 
   const attendanceDateKey = useMemo(() => format(attendanceSessionDate, "dd-MM-yyyy"), [attendanceSessionDate]);
 
@@ -688,27 +749,64 @@ const BatchManager = ({
 
       <div className="bg-card rounded-xl border border-border p-4 shadow-sm space-y-3">
         <label className="text-sm font-medium text-foreground">Select Batch</label>
-        <select
-          value={selectedBatchId}
-          onChange={(e) => setSelectedBatchId(e.target.value)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-        >
-          <option value="">Choose a batch</option>
-          {batches.map((batch) => (
-            <option key={batch.id} value={batch.id}>
-              {batch.batchName} - {batch.batchCode}
-            </option>
-          ))}
-        </select>
+        <div className="flex gap-2">
+          <select
+            value={selectedBatchId}
+            onChange={(e) => setSelectedBatchId(e.target.value)}
+            className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="">Choose a batch</option>
+            {batches.map((batch) => (
+              <option key={batch.id} value={batch.id}>
+                {batch.batchName} - {batch.batchCode}
+              </option>
+            ))}
+          </select>
+          {selectedBatchId && (
+            <Button
+              variant="destructive"
+              size="icon"
+              className="shrink-0"
+              onClick={() => handleDeleteBatch(selectedBatchId)}
+            >
+              <X size={18} />
+            </Button>
+          )}
+        </div>
       </div>
 
       {selectedBatch ? (
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <p className="text-sm font-semibold text-foreground">{selectedBatch.batchName}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {selectedBatch.courseName} | {selectedBatch.timing} | {selectedBatch.teacherName}
-            </p>
+            {isEditingBatch ? (
+              <div className="space-y-3">
+                <Input value={editBatchName} onChange={(e) => setEditBatchName(e.target.value)} placeholder="Batch name" />
+                <Input value={editCourseName} onChange={(e) => setEditCourseName(e.target.value)} placeholder="Course name" />
+                <Input value={editBatchCode} onChange={(e) => setEditBatchCode(e.target.value)} placeholder="Batch code" />
+                <Input value={editTiming} onChange={(e) => setEditTiming(e.target.value)} placeholder="Timing" />
+                <Input value={editTeacherName} onChange={(e) => setEditTeacherName(e.target.value)} placeholder="Teacher name" />
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1 gap-1" onClick={saveBatchEdit}>
+                    <Check size={14} /> Save Changes
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1 gap-1" onClick={() => setIsEditingBatch(false)}>
+                    <X size={14} /> Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{selectedBatch.batchName}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {selectedBatch.courseName} | {selectedBatch.timing} | {selectedBatch.teacherName}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" className="shrink-0 gap-1 h-8" onClick={startEditingBatch}>
+                  <Pencil size={12} /> Edit
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-xs">
@@ -867,21 +965,32 @@ const BatchManager = ({
                               <p className="text-[11px] text-muted-foreground mt-0.5 break-all">{s.email}</p>
                               <p className="text-[11px] text-muted-foreground">{s.mobile}</p>
                             </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="shrink-0 gap-1 h-8"
-                              onClick={() => {
-                                setEditingStudentId(s.id);
-                                setEditRoll(s.rollNo);
-                                setEditName(s.name);
-                                setEditMobile(s.mobile);
-                                setEditEmail(s.email);
-                              }}
-                            >
-                              <Pencil size={12} /> Edit
-                            </Button>
+                            <div className="flex gap-2 shrink-0">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 h-8"
+                                onClick={() => {
+                                  setEditingStudentId(s.id);
+                                  setEditRoll(s.rollNo);
+                                  setEditName(s.name);
+                                  setEditMobile(s.mobile);
+                                  setEditEmail(s.email);
+                                }}
+                              >
+                                <Pencil size={12} /> Edit
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 h-8 text-destructive hover:bg-destructive/10"
+                                onClick={() => removeStudentFromBatch(s.id, s.name)}
+                              >
+                                <X size={12} /> Remove
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>
