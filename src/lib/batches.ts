@@ -3,7 +3,6 @@ export type StudentProfile = {
   /** Unique within the batch; used to look up records */
   rollNo: string;
   name: string;
-  mobile: string;
   email: string;
 };
 

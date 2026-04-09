@@ -491,12 +491,10 @@ const BatchManager = ({
 
   const [studentName, setStudentName] = useState("");
   const [studentRollNo, setStudentRollNo] = useState("");
-  const [studentMobile, setStudentMobile] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [editRoll, setEditRoll] = useState("");
   const [editName, setEditName] = useState("");
-  const [editMobile, setEditMobile] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [resourceTitle, setResourceTitle] = useState("");
   const [resourceLink, setResourceLink] = useState("");
@@ -691,23 +689,35 @@ const BatchManager = ({
 
   const saveEditedStudent = () => {
     if (!editingStudentId || !selectedBatch) return;
-    if (!editName.trim() || !editMobile.trim() || !editEmail.trim() || !editRoll.trim()) {
+    if (!editName.trim() || !editEmail.trim() || !editRoll.trim()) {
       toast({
         variant: "destructive",
         title: "Missing fields",
-        description: "Fill roll no., name, mobile, and email.",
+        description: "Fill roll no., name, and email.",
       });
       return;
     }
     const roll = editRoll.trim();
-    const duplicate = selectedBatch.students.some(
+    const email = editEmail.trim().toLowerCase();
+    const duplicateRoll = selectedBatch.students.some(
       (s) => s.id !== editingStudentId && s.rollNo.trim().toLowerCase() === roll.toLowerCase(),
     );
-    if (duplicate) {
+    const duplicateEmail = selectedBatch.students.some(
+      (s) => s.id !== editingStudentId && s.email.trim().toLowerCase() === email.toLowerCase(),
+    );
+    if (duplicateRoll) {
       toast({
         variant: "destructive",
         title: "Duplicate roll no.",
         description: "Another student in this batch already has this roll number.",
+      });
+      return;
+    }
+    if (duplicateEmail) {
+      toast({
+        variant: "destructive",
+        title: "Duplicate email",
+        description: "Another student in this batch already has this email identity.",
       });
       return;
     }
@@ -719,8 +729,7 @@ const BatchManager = ({
               ...s,
               rollNo: roll,
               name: editName.trim(),
-              mobile: editMobile.trim(),
-              email: editEmail.trim().toLowerCase(),
+              email,
             }
           : s,
       ),
@@ -876,34 +885,45 @@ const BatchManager = ({
                 </span>
               </AccordionTrigger>
               <AccordionContent className="space-y-3 pb-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <Input value={studentRollNo} onChange={(e) => setStudentRollNo(e.target.value)} placeholder="Roll no. (unique ID)" />
                   <Input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Student name" />
-                  <Input value={studentMobile} onChange={(e) => setStudentMobile(e.target.value)} placeholder="Mobile no." />
-                  <Input value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="Email" />
+                  <Input value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="Email (Identity)" />
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Roll number is the unique reference for this batch—use it when adding attendance, HW, and test records.
+                  Email is the identity for this batch. Roll number is the unique reference for attendance and records.
                 </p>
                 <Button
                   onClick={() => {
-                    if (!studentName.trim() || !studentMobile.trim() || !studentEmail.trim() || !studentRollNo.trim()) {
+                    if (!studentName.trim() || !studentEmail.trim() || !studentRollNo.trim()) {
                       toast({
                         variant: "destructive",
                         title: "Missing fields",
-                        description: "Enter roll no., name, mobile, and email.",
+                        description: "Enter roll no., name, and email.",
                       });
                       return;
                     }
                     const roll = studentRollNo.trim();
-                    const duplicate = selectedBatch.students.some(
+                    const email = studentEmail.trim().toLowerCase();
+                    const duplicateRoll = selectedBatch.students.some(
                       (s) => s.rollNo.trim().toLowerCase() === roll.toLowerCase(),
                     );
-                    if (duplicate) {
+                    const duplicateEmail = selectedBatch.students.some(
+                      (s) => s.email.trim().toLowerCase() === email.toLowerCase(),
+                    );
+                    if (duplicateRoll) {
                       toast({
                         variant: "destructive",
                         title: "Duplicate roll no.",
                         description: "This roll number is already used in this batch.",
+                      });
+                      return;
+                    }
+                    if (duplicateEmail) {
+                      toast({
+                        variant: "destructive",
+                        title: "Duplicate email",
+                        description: "This email is already used as an identity for another student in this batch.",
                       });
                       return;
                     }
@@ -915,14 +935,12 @@ const BatchManager = ({
                           id: makeId(),
                           rollNo: roll,
                           name: studentName.trim(),
-                          mobile: studentMobile.trim(),
-                          email: studentEmail.trim().toLowerCase(),
+                          email,
                         },
                       ],
                     }));
                     setStudentName("");
                     setStudentRollNo("");
-                    setStudentMobile("");
                     setStudentEmail("");
                   }}
                   className="w-full"
@@ -936,10 +954,9 @@ const BatchManager = ({
                       <div key={s.id} className="text-xs border-b border-border/60 pb-3 last:border-0 last:pb-0">
                         {editingStudentId === s.id ? (
                           <div className="space-y-2">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                               <Input value={editRoll} onChange={(e) => setEditRoll(e.target.value)} placeholder="Roll no." />
                               <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
-                              <Input value={editMobile} onChange={(e) => setEditMobile(e.target.value)} placeholder="Mobile" />
                               <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="Email" />
                             </div>
                             <div className="flex gap-2">
@@ -963,7 +980,6 @@ const BatchManager = ({
                               <span className="font-semibold text-primary">Roll {s.rollNo}</span>
                               <span className="text-foreground"> — {s.name}</span>
                               <p className="text-[11px] text-muted-foreground mt-0.5 break-all">{s.email}</p>
-                              <p className="text-[11px] text-muted-foreground">{s.mobile}</p>
                             </div>
                             <div className="flex gap-2 shrink-0">
                               <Button
@@ -975,7 +991,6 @@ const BatchManager = ({
                                   setEditingStudentId(s.id);
                                   setEditRoll(s.rollNo);
                                   setEditName(s.name);
-                                  setEditMobile(s.mobile);
                                   setEditEmail(s.email);
                                 }}
                               >
