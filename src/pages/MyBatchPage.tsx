@@ -47,17 +47,20 @@ const MyBatchPage = () => {
   }, []);
 
   const { myBatch, me } = useMemo(() => {
-    // 1. Try finding by batch_id/batch_code from profile JOIN first
-    if (profile?.batches) {
-      const b = batches.find(x => x.batchCode === profile.batches?.batch_code || x.id === profile.batch_id);
+    // 1. Try finding by batch_id/batch_code from profile directly
+    const targetBatchCode = profile?.batch_code || profile?.batches?.batch_code;
+    const targetBatchId = profile?.batch_id;
+
+    if (targetBatchId || targetBatchCode) {
+      const b = batches.find(x => (targetBatchId && x.id === targetBatchId) || (targetBatchCode && x.batchCode === targetBatchCode));
       if (b) {
         // Find me in this batch or create a mock student profile from profile row
         const student = b.students.find(s => s.email.toLowerCase() === email.toLowerCase()) || {
-          id: profile.id,
-          rollNo: profile.roll_no || "",
-          name: profile.full_name || "",
-          mobile: profile.mobile_number || "",
-          email: profile.email
+          id: profile!.id,
+          rollNo: profile!.roll_no || "",
+          name: profile!.full_name || "",
+          mobile: profile!.mobile || "",
+          email: profile!.email || email
         };
         return { myBatch: b, me: student as StudentProfile };
       }
