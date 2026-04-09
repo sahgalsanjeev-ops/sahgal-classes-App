@@ -47,6 +47,45 @@ const LoginPage = () => {
     return () => window.clearInterval(timer);
   }, [otpSent, resendCountdown]);
 
+  const handleSendOTP = async () => {
+    if (!email.includes("@")) return;
+    if (!supabase || !isSupabaseConfigured) {
+      toast({
+        variant: "destructive",
+        title: "Config Error",
+        description: "Supabase properly set nahi hai.",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          shouldCreateUser: true,
+        },
+      });
+
+      if (error) throw error;
+
+      setOtpSent(true);
+      setResendCountdown(RESEND_SECONDS);
+      toast({
+        title: "Code Sent",
+        description: `Check your email ${email} for the code.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Send Failed",
+        description: error.message || "Email code nahi bhej paye.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleVerifyOTP = async () => {
     if (!isCompleteOtp(otp)) return;
     if (!supabase || !isSupabaseConfigured) {
