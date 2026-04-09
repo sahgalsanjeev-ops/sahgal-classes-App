@@ -60,6 +60,7 @@ const AdminStudentProfilesSection = () => {
     if (!supabase) return;
     setSavingId(id);
     try {
+      // Note: No unique check here anymore as roll_no is just an info field
       const { error } = await supabase.from("profiles").update({ roll_no: rollDraft.trim() || null }).eq("id", id);
       if (error) throw new Error(error.message);
       toast({ title: "Saved", description: "Roll number updated." });

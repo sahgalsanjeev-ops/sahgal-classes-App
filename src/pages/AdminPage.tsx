@@ -699,20 +699,9 @@ const BatchManager = ({
     }
     const roll = editRoll.trim();
     const email = editEmail.trim().toLowerCase();
-    const duplicateRoll = selectedBatch.students.some(
-      (s) => s.id !== editingStudentId && s.rollNo.trim().toLowerCase() === roll.toLowerCase(),
-    );
     const duplicateEmail = selectedBatch.students.some(
       (s) => s.id !== editingStudentId && s.email.trim().toLowerCase() === email.toLowerCase(),
     );
-    if (duplicateRoll) {
-      toast({
-        variant: "destructive",
-        title: "Duplicate roll no.",
-        description: "Another student in this batch already has this roll number.",
-      });
-      return;
-    }
     if (duplicateEmail) {
       toast({
         variant: "destructive",
@@ -886,12 +875,12 @@ const BatchManager = ({
               </AccordionTrigger>
               <AccordionContent className="space-y-3 pb-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <Input value={studentRollNo} onChange={(e) => setStudentRollNo(e.target.value)} placeholder="Roll no. (unique ID)" />
+                  <Input value={studentRollNo} onChange={(e) => setStudentRollNo(e.target.value)} placeholder="Roll no. (Optional)" />
                   <Input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Student name" />
-                  <Input value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="Email (Identity)" />
+                  <Input value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="Email (Unique Identity)" />
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Email is the identity for this batch. Roll number is the unique reference for attendance and records.
+                  Email is the primary identity used for login and batch linking. Roll number is stored for reference only.
                 </p>
                 <Button
                   onClick={() => {
@@ -905,20 +894,9 @@ const BatchManager = ({
                     }
                     const roll = studentRollNo.trim();
                     const email = studentEmail.trim().toLowerCase();
-                    const duplicateRoll = selectedBatch.students.some(
-                      (s) => s.rollNo.trim().toLowerCase() === roll.toLowerCase(),
-                    );
                     const duplicateEmail = selectedBatch.students.some(
                       (s) => s.email.trim().toLowerCase() === email.toLowerCase(),
                     );
-                    if (duplicateRoll) {
-                      toast({
-                        variant: "destructive",
-                        title: "Duplicate roll no.",
-                        description: "This roll number is already used in this batch.",
-                      });
-                      return;
-                    }
                     if (duplicateEmail) {
                       toast({
                         variant: "destructive",
@@ -955,9 +933,9 @@ const BatchManager = ({
                         {editingStudentId === s.id ? (
                           <div className="space-y-2">
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                              <Input value={editRoll} onChange={(e) => setEditRoll(e.target.value)} placeholder="Roll no." />
+                              <Input value={editRoll} onChange={(e) => setEditRoll(e.target.value)} placeholder="Roll no. (Ref)" />
                               <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
-                              <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="Email" />
+                              <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="Email (Unique)" />
                             </div>
                             <div className="flex gap-2">
                               <Button type="button" size="sm" className="flex-1 gap-1" onClick={saveEditedStudent}>

@@ -31,33 +31,27 @@ const MyBatchPage = () => {
       const student = batch.students.find((s) => s.email.toLowerCase() === em) ?? null;
       if (student) return { myBatch: batch, me: student };
     }
-    return { myBatch: null as Batch | null, me: null as StudentProfile | null };
+    return { myBatch: null, me: null };
   }, [batches, email]);
 
   const myAttendance = useMemo(() => {
     if (!myBatch || !me) return [];
     return myBatch.attendanceRecords.filter(
-      (r) =>
-        r.studentEmail.toLowerCase() === me.email.toLowerCase() ||
-        (r.studentRollNo && r.studentRollNo.trim().toLowerCase() === me.rollNo.trim().toLowerCase()),
+      (r) => r.studentEmail.toLowerCase() === me.email.toLowerCase()
     );
   }, [myBatch, me]);
 
   const myHomework = useMemo(() => {
     if (!myBatch || !me) return [];
     return myBatch.homeworkRecords.filter(
-      (r) =>
-        r.studentEmail.toLowerCase() === me.email.toLowerCase() ||
-        (r.studentRollNo && r.studentRollNo.trim().toLowerCase() === me.rollNo.trim().toLowerCase()),
+      (r) => r.studentEmail.toLowerCase() === me.email.toLowerCase()
     );
   }, [myBatch, me]);
 
   const myTests = useMemo(() => {
     if (!myBatch || !me) return [];
     return myBatch.testMarksRecords.filter(
-      (r) =>
-        r.studentEmail.toLowerCase() === me.email.toLowerCase() ||
-        (r.studentRollNo && r.studentRollNo.trim().toLowerCase() === me.rollNo.trim().toLowerCase()),
+      (r) => r.studentEmail.toLowerCase() === me.email.toLowerCase()
     );
   }, [myBatch, me]);
 
