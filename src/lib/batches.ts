@@ -1,3 +1,5 @@
+import { isSupabaseConfigured, supabase } from "./supabase";
+
 export type StudentProfile = {
   id: string;
   /** Unique within the batch; used to look up records */
@@ -104,7 +106,7 @@ export const getBatches = (): Batch[] => {
       homeworkRecords: (batch.homeworkRecords ?? []).map((r) => {
         const raw = r as HomeworkRecord & { status?: string };
         let status: HomeworkStatus = raw.status === "Done" || raw.status === "Not done" || raw.status === "Incomplete" ? raw.status : "Not done";
-        if (raw.status === "Pending") status = "Not done";
+        if (raw.status === "Pending" ) status = "Not done";
         return { ...raw, status };
       }),
       testMarksRecords: (batch.testMarksRecords ?? []).map((r) => {
@@ -127,6 +129,41 @@ export const getBatches = (): Batch[] => {
     return [];
   }
 };
+
+export async function fetchBatchesFromSupabase(): Promise<Batch[]> {
+  if (!isSupabaseConfigured || !supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from("batches")
+      .select("*")
+      .order("created_at", { ascending: false });
+    
+    if (error) throw error;
+    if (!data) return [];
+
+    // Map Supabase rows to Batch type (with empty arrays for now as resources are not in DB yet)
+    return data.map((row: any) => ({
+      id: row.id,
+      batchName: row.batch_name,
+      courseName: row.course_name,
+      batchCode: row.batch_code,
+      timing: row.timing,
+      teacherName: row.teacher_name,
+      videos: [],
+      homework: [],
+      studyMaterialPdfs: [],
+      testPapers: [],
+      students: [],
+      attendanceRecords: [],
+      homeworkRecords: [],
+      testMarksRecords: [],
+      createdAt: row.created_at,
+    }));
+  } catch (e) {
+    console.error("fetchBatchesFromSupabase", e);
+    return [];
+  }
+}
 
 export const saveBatches = (batches: Batch[]) => {
   if (typeof window === "undefined") return;

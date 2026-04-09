@@ -10,8 +10,15 @@ export type ProfileRow = {
   full_name: string;
   mobile: string;
   roll_no: string | null;
+  /** Set by admin; linked to batches table. */
+  batch_id: string | null;
   /** Set by admin; used for targeted notices. */
   batch_code: string | null;
+  /** Joined data from batches table */
+  batches?: {
+    batch_name: string;
+    batch_code: string;
+  } | null;
   class_selection: ClassSelection;
   marks_10_maths: string | null;
   marks_12_maths: string | null;
@@ -37,7 +44,11 @@ export type ProfileRow = {
 
 export async function fetchProfile(userId: string | undefined): Promise<ProfileRow | null> {
   if (!isSupabaseConfigured || !supabase || !userId) return null;
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*, batches(batch_name, batch_code)")
+    .eq("id", userId)
+    .maybeSingle();
   if (error) {
     console.warn("fetchProfile", error.message);
     return null;

@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Clock, FileText } from "lucide-react";
-import { Batch, computeTestPercentage, getBatches, StudentProfile } from "@/lib/batches";
+import { Batch, computeTestPercentage, getBatches, fetchBatchesFromSupabase, StudentProfile } from "@/lib/batches";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { fetchProfile, ProfileRow } from "@/lib/profiles";
 import type { OnlineTestRow } from "@/lib/onlineTests";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const MyBatchPage = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("rahul@example.com");
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [batchOnlineTests, setBatchOnlineTests] = useState<OnlineTestRow[]>([]);
   const [batchTestsLoading, setBatchTestsLoading] = useState(false);
@@ -16,23 +18,59 @@ const MyBatchPage = () => {
   useEffect(() => {
     const run = async () => {
       if (supabase) {
-        const { data } = await supabase.auth.getUser();
-        const userEmail = data.user?.email?.toLowerCase();
-        if (userEmail) setEmail(userEmail);
+        const { data: { user } } = await supabase.auth.getUser();
+        const userEmail = user?.email?.toLowerCase();
+        if (userEmail) {
+          setEmail(userEmail);
+          const p = await fetchProfile(user?.id);
+          setProfile(p);
+        }
       }
-      setBatches(getBatches());
+      // Combine localStorage batches with Supabase batches
+      const localBatches = getBatches();
+      const dbBatches = await fetchBatchesFromSupabase();
+      
+      // Merge: priority to localStorage if ID matches (to keep local resources for now)
+      const merged = [...dbBatches];
+      localBatches.forEach(lb => {
+        const idx = merged.findIndex(mb => mb.id === lb.id || mb.batchCode === lb.batchCode);
+        if (idx !== -1) {
+          merged[idx] = { ...merged[idx], ...lb };
+        } else {
+          merged.push(lb);
+        }
+      });
+
+      setBatches(merged);
     };
     void run();
   }, []);
 
   const { myBatch, me } = useMemo(() => {
+    // 1. Try finding by batch_id/batch_code from profile JOIN first
+    if (profile?.batches) {
+      const b = batches.find(x => x.batchCode === profile.batches?.batch_code || x.id === profile.batch_id);
+      if (b) {
+        // Find me in this batch or create a mock student profile from profile row
+        const student = b.students.find(s => s.email.toLowerCase() === email.toLowerCase()) || {
+          id: profile.id,
+          rollNo: profile.roll_no || "",
+          name: profile.full_name || "",
+          mobile: profile.mobile_number || "",
+          email: profile.email
+        };
+        return { myBatch: b, me: student as StudentProfile };
+      }
+    }
+
+    // 2. Fallback to searching all batches
     const em = email.toLowerCase();
     for (const batch of batches) {
       const student = batch.students.find((s) => s.email.toLowerCase() === em) ?? null;
       if (student) return { myBatch: batch, me: student };
     }
     return { myBatch: null as Batch | null, me: null as StudentProfile | null };
-  }, [batches, email]);
+  }, [batches, email, profile]);
 
   const myAttendance = useMemo(() => {
     if (!myBatch || !me) return [];

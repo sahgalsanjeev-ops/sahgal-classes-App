@@ -200,7 +200,7 @@ const AdminPage = () => {
     }
   };
 
-  const handleCreateBatch = () => {
+  const handleCreateBatch = async () => {
     if (!batchName.trim() || !courseName.trim() || !batchCode.trim() || !timing.trim() || !teacherName.trim()) {
       toast({
         variant: "destructive",
@@ -210,11 +210,37 @@ const AdminPage = () => {
       return;
     }
 
+    const batchCodeUpper = batchCode.trim().toUpperCase();
+
+    // 1. Save to Supabase if configured
+    let supabaseBatchId = makeId();
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from("batches")
+          .insert({
+            batch_name: batchName.trim(),
+            course_name: courseName.trim(),
+            batch_code: batchCodeUpper,
+            timing: timing.trim(),
+            teacher_name: teacherName.trim(),
+          })
+          .select("id")
+          .single();
+        
+        if (error) throw error;
+        if (data) supabaseBatchId = data.id;
+      } catch (e) {
+        console.error("Supabase batch create error:", e);
+        toast({ variant: "destructive", title: "Cloud sync failed", description: "Batch created locally only." });
+      }
+    }
+
     const newBatch: Batch = {
-      id: makeId(),
+      id: supabaseBatchId,
       batchName: batchName.trim(),
       courseName: courseName.trim(),
-      batchCode: batchCode.trim().toUpperCase(),
+      batchCode: batchCodeUpper,
       timing: timing.trim(),
       teacherName: teacherName.trim(),
       videos: [],
@@ -868,6 +894,7 @@ const BatchManager = ({
           const { error } = await supabase
             .from("profiles")
             .update({ 
+              batch_id: selectedBatch.id,
               batch_code: selectedBatch.batchCode,
               roll_no: roll 
             })
@@ -1093,6 +1120,7 @@ const BatchManager = ({
                         const { error: profileError } = await supabase
                           .from("profiles")
                           .update({ 
+                            batch_id: selectedBatch.id,
                             batch_code: selectedBatch.batchCode,
                             roll_no: roll 
                           })
