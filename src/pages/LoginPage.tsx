@@ -148,7 +148,11 @@ const LoginPage = () => {
           .maybeSingle(); // Use maybeSingle to avoid errors for new users
   
         if (profile?.account_status === 'blocked') {
-          await supabase.auth.signOut();
+          try {
+            await supabase.auth.signOut();
+          } catch (err) {
+            console.warn("Auth signOut error (blocked user):", err);
+          }
           if (!isSuperAdmin) localStorage.removeItem('last_session_id');
           setLoading(false); 
           toast({

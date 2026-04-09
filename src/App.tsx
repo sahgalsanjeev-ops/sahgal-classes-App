@@ -126,7 +126,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             }
 
             console.warn("Session ID mismatch. This device is not the active session. Logging out...");
-            await supabase.auth.signOut();
+            try {
+              await supabase.auth.signOut();
+            } catch (err) {
+              console.warn("Auth signOut failed (expected on concurrent logout):", err);
+            }
             localStorage.removeItem('last_session_id');
             setIsAuthenticated(false);
           } 
@@ -186,10 +190,16 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             // Log if session ID changed on another device
             if (newSessionId && newSessionId !== localSessionId) {
               console.warn("New session detected elsewhere. Logging out this device...");
-              void supabase.auth.signOut().then(() => {
-                localStorage.removeItem('last_session_id');
-                setIsAuthenticated(false);
-              });
+              void (async () => {
+                try {
+                  await supabase.auth.signOut();
+                } catch (err) {
+                  console.warn("Auth signOut error (monitor):", err);
+                } finally {
+                  localStorage.removeItem('last_session_id');
+                  setIsAuthenticated(false);
+                }
+              })();
             }
           }
         )
