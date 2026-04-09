@@ -63,11 +63,6 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
-    /* Prevent text selection */
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
   }
 
   /* Hide scrollbar for mobile feel */
@@ -77,13 +72,6 @@
   * {
     -ms-overflow-style: none;
     scrollbar-width: none;
-  }
-}
-
-/* Prevent printing */
-@media print {
-  body {
-    display: none !important;
   }
 }
 

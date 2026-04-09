@@ -3,14 +3,11 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
-import { toast } from "@/components/ui/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import BottomNav from "@/components/BottomNav";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { RequireCompleteStudentProfile } from "@/components/auth/RequireCompleteStudentProfile";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { isSuperAdminEmail } from "@/lib/adminAccess";
-import GlobalWatermark from "@/components/GlobalWatermark";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import CoursesPage from "./pages/CoursesPage";
@@ -41,210 +38,34 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // Disable right-click
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-    };
-
-    // Disable keyboard shortcuts (F12, Ctrl+Shift+I, etc.)
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === 'F12' ||
-        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
-        (e.ctrlKey && e.key === 'U') ||
-        e.key === 'PrintScreen'
-      ) {
-        e.preventDefault();
-        toast({
-          variant: "destructive",
-          title: "Security Warning",
-          description: "Screenshots are not allowed for security reasons.",
-        });
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        document.body.style.filter = 'blur(15px)';
-      } else {
-        document.body.style.filter = 'none';
-      }
-    };
-
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [toast]); // Added toast to dependencies since it's used inside handleKeyDown
-
-  useEffect(() => {
     if (!supabase) {
       setIsAuthenticated(false);
       setChecking(false);
       return;
     }
 
-    const runCheck = async (retryCount = 0) => {
+    const runCheck = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          // Super-admins bypass the one-device rule
-          if (isSuperAdminEmail(session.user.email)) {
-            setIsAuthenticated(true);
-            setChecking(false);
-            return;
-          }
-
-          const localSessionId = localStorage.getItem('last_session_id');
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('last_session_id')
-            .eq('id', session.user.id)
-            .maybeSingle(); 
-
-          if (error) {
-            console.error("Error fetching profile for session check:", error.message);
-            setIsAuthenticated(true); // Don't kick them out on DB errors
-            setChecking(false);
-            return;
-          }
-
-          // Case 1: Database has a session ID, but it doesn't match ours
-          // This could be a new login elsewhere OR a race condition during current login
-          if (profile?.last_session_id && profile.last_session_id !== localSessionId) {
-            // Handle race condition: during a fresh login, runCheck might run BEFORE LoginPage.tsx 
-            // finishes updating the database or even setting localStorage.
-            if (retryCount < 3) {
-              setTimeout(() => void runCheck(retryCount + 1), 1000);
-              return;
-            }
-
-            console.warn("Session ID mismatch. This device is not the active session. Logging out...");
-            try {
-              await supabase.auth.signOut();
-            } catch (err) {
-              console.warn("Auth signOut failed (expected on concurrent logout):", err);
-            }
-            localStorage.removeItem('last_session_id');
-            setIsAuthenticated(false);
-          } 
-          // Case 2: No session ID in DB yet, but we have a session. 
-          // This is fine (new user or legacy).
-          else {
-            setIsAuthenticated(true);
-          }
-        } else {
-          setIsAuthenticated(false);
-        }
+        setIsAuthenticated(Boolean(session));
       } catch (err) {
         console.error("Auth error:", err);
         setIsAuthenticated(false);
       } finally {
+        // Yeh line hamesha loading khatam karegi
         setChecking(false); 
       }
     };
 
     runCheck();
 
-    // Check on tab focus or wake up (moved session check here as well)
-    const handleAuthVisibility = () => {
-      if (document.visibilityState === 'visible' && isAuthenticated) {
-        void runCheck();
-      }
-    };
-    document.addEventListener('visibilitychange', handleAuthVisibility);
-
-    // Fallback heartbeat check (every 1 minute)
-    const heartbeat = setInterval(() => {
-      if (isAuthenticated) {
-        void runCheck();
-      }
-    }, 60000);
-
-    let profileSubscription: any = null;
-
-    const setupSubscription = async (userId: string) => {
-      if (profileSubscription) profileSubscription.unsubscribe();
-
-      // Ensure the channel name is truly unique to this user
-      profileSubscription = supabase
-        .channel(`session_monitor_${userId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: `id=eq.${userId}`,
-          },
-          (payload) => {
-            const newSessionId = payload.new.last_session_id;
-            const localSessionId = localStorage.getItem('last_session_id');
-            
-            // Log if session ID changed on another device
-            if (newSessionId && newSessionId !== localSessionId) {
-              console.warn("New session detected elsewhere. Logging out this device...");
-              void (async () => {
-                try {
-                  await supabase.auth.signOut();
-                } catch (err) {
-                  console.warn("Auth signOut error (monitor):", err);
-                } finally {
-                  localStorage.removeItem('last_session_id');
-                  setIsAuthenticated(false);
-                }
-              })();
-            }
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log("Realtime session monitor active for user:", userId);
-          } else if (status === 'CLOSED') {
-            console.warn("Realtime session monitor closed.");
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error("Realtime session monitor failed to initialize.");
-          }
-        });
-    };
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        void runCheck();
-        if (!isSuperAdminEmail(session.user.email)) {
-          void setupSubscription(session.user.id);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setIsAuthenticated(false);
-        localStorage.removeItem('last_session_id');
-        if (profileSubscription) {
-          profileSubscription.unsubscribe();
-          profileSubscription = null;
-        }
-        setChecking(false);
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(Boolean(session));
+      setChecking(false);
     });
 
-    // Initial subscription setup if already logged in
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user && !isSuperAdminEmail(session.user.email)) {
-        void setupSubscription(session.user.id);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-      clearInterval(heartbeat);
-      document.removeEventListener('visibilitychange', handleAuthVisibility);
-      if (profileSubscription) profileSubscription.unsubscribe();
-    };
-  }, [isAuthenticated]); // Added isAuthenticated to dependencies for visibility check logic
+    return () => subscription.unsubscribe();
+  }, []);
 
   if (checking) {
     return <div className="min-h-screen grid place-items-center text-muted-foreground">Loading...</div>;
@@ -270,8 +91,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <div className="max-w-lg mx-auto bg-background min-h-screen relative shadow-xl overflow-hidden">
-          <GlobalWatermark />
+        <div className="max-w-lg mx-auto bg-background min-h-screen relative shadow-xl">
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route

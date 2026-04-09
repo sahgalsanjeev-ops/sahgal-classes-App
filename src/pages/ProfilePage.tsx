@@ -29,13 +29,8 @@ const ProfilePage = () => {
 
   const handleLogout = async () => {
     if (supabase) {
-      try {
-        await supabase.auth.signOut();
-      } catch (err) {
-        console.warn("Logout error:", err);
-      }
+      await supabase.auth.signOut();
     }
-    localStorage.removeItem('last_session_id');
     navigate("/login", { replace: true });
   };
 

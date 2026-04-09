@@ -115,19 +115,6 @@ const AdminStudentDetailPage = () => {
     }
     setSaving(true);
     try {
-      const finalBatchCode = batchCode.trim().toUpperCase();
-      
-      // Look up batch_id if batchCode is provided
-      let bid: string | null = null;
-      if (finalBatchCode) {
-        const { data: bData } = await supabase
-          .from("batches")
-          .select("id")
-          .eq("batch_code", finalBatchCode)
-          .maybeSingle();
-        if (bData) bid = bData.id;
-      }
-
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -135,8 +122,7 @@ const AdminStudentDetailPage = () => {
           full_name: fullName.trim(),
           mobile: mobile.trim(),
           roll_no: rollNo.trim() || null,
-          batch_id: bid,
-          batch_code: finalBatchCode || null,
+          batch_code: batchCode.trim() || null,
           class_selection: classSelection,
           marks_10_maths: marks10.trim() || null,
           marks_12_maths: classSelection === "11th" ? marks12.trim() || null : marks12.trim() || null,

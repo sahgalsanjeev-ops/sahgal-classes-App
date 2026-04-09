@@ -8,7 +8,6 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { toast } from "@/components/ui/use-toast";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { getPostLoginPath } from "@/lib/profiles";
-import { isSuperAdminEmail } from "@/lib/adminAccess";
 
 const LoginPage = () => {
   const RESEND_SECONDS = 30;
@@ -28,24 +27,9 @@ const LoginPage = () => {
     if (!supabase) return;
 
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        // One Device Login Check (Same as App.tsx to prevent redirect loop)
-        const localSessionId = localStorage.getItem('last_session_id');
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('last_session_id')
-          .eq('id', session.user.id)
-          .maybeSingle();
-
-        if (profile && profile.last_session_id && profile.last_session_id !== localSessionId) {
-          // If session is invalid, don't redirect to dashboard.
-          // We can optionally sign out here too to be clean.
-          console.warn("Invalid session found on Login page. Staying here.");
-          return;
-        }
-
-        const path = await getPostLoginPath(session.user.id, session.user.email);
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        const path = await getPostLoginPath(data.session.user.id, data.session.user.email);
         navigate(path, { replace: true });
       }
     };
@@ -63,46 +47,6 @@ const LoginPage = () => {
     return () => window.clearInterval(timer);
   }, [otpSent, resendCountdown]);
 
-  const handleSendOTP = async () => {
-    if (!email.includes("@")) return;
-    if (!supabase || !isSupabaseConfigured) {
-      toast({
-        variant: "destructive",
-        title: "Config Error",
-        description: "Supabase properly set nahi hai.",
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: {
-          shouldCreateUser: true,
-        },
-      });
-
-      if (error) throw error;
-
-      setOtpSent(true);
-      setResendCountdown(RESEND_SECONDS);
-      toast({
-        title: "OTP Sent",
-        description: "Check karein apna email.",
-      });
-    } catch (error: any) {
-      console.error("OTP Send Error:", error.message);
-      toast({
-        variant: "destructive",
-        title: "OTP Error",
-        description: error.message || "Email bhejte waqt problem aayi.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleVerifyOTP = async () => {
     if (!isCompleteOtp(otp)) return;
     if (!supabase || !isSupabaseConfigured) {
@@ -118,13 +62,6 @@ const LoginPage = () => {
     setLoading(true);
   
     try {
-      // 0. Pre-generate and store session ID to avoid race conditions with App.tsx
-      const isSuperAdmin = isSuperAdminEmail(email.trim());
-      const newSessionId = !isSuperAdmin ? crypto.randomUUID() : "";
-      if (!isSuperAdmin) {
-        localStorage.setItem('last_session_id', newSessionId);
-      }
-
       // 1. OTP Check karein
       const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
         email: email.trim(),
@@ -132,11 +69,7 @@ const LoginPage = () => {
         type: "email",
       });
   
-      if (verifyError) {
-        // If verification fails, clear the local session ID
-        if (!isSuperAdmin) localStorage.removeItem('last_session_id');
-        throw verifyError;
-      }
+      if (verifyError) throw verifyError;
   
       const user = verifyData.user;
       if (user) {
@@ -145,16 +78,11 @@ const LoginPage = () => {
           .from('profiles')
           .select('account_status')
           .eq('id', user.id)
-          .maybeSingle(); // Use maybeSingle to avoid errors for new users
+          .single();
   
         if (profile?.account_status === 'blocked') {
-          try {
-            await supabase.auth.signOut();
-          } catch (err) {
-            console.warn("Auth signOut error (blocked user):", err);
-          }
-          if (!isSuperAdmin) localStorage.removeItem('last_session_id');
-          setLoading(false); 
+          await supabase.auth.signOut();
+          setLoading(false); // <--- Yahan unlock karna zaroori hai
           toast({
             variant: "destructive",
             title: "Account Blocked",
@@ -165,25 +93,20 @@ const LoginPage = () => {
         }
   
         // 3. Single Device Login Logic
-        // Skip for super-admins
-        if (!isSuperAdmin) {
-          // Session update
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ last_session_id: newSessionId })
-            .eq('id', user.id);
-
-          if (updateError) {
-            console.error("Failed to update session ID:", updateError.message);
-          }
-        }
+        const newSessionId = Math.random().toString(36).substring(7);
+        localStorage.setItem('current_session_id', newSessionId);
+  
+        // Session update (Isme error aaye toh bhi app login hone degi)
+        await supabase
+          .from('profiles')
+          .update({ current_session_id: newSessionId })
+          .eq('id', user.id);
       }
   
       // 4. Sab sahi hai, Dashboard par bhejein
       const path = await getPostLoginPath(user?.id, user?.email);
       setLoading(false); // <--- Unlock
-      // Small delay to ensure DB replication and state are ready
-      setTimeout(() => navigate(path, { replace: true }), 100);
+      navigate(path, { replace: true });
   
     } catch (error: any) {
       // KUCH BHI GALAT HO, TOH YAHAN BOX UNLOCK HO JAYEGA

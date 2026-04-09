@@ -2,13 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
   ArrowLeft,
   UploadCloud,
   Plus,
@@ -18,15 +11,9 @@ import {
   NotebookPen,
   BarChart3,
   Pencil,
-  Trash2,
   Check,
   X,
   Calendar as CalendarIcon,
-  Link as LinkIcon,
-  Video,
-  FileText,
-  Book,
-  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +39,6 @@ import AdminHomeworkSection from "@/components/admin/AdminHomeworkSection";
 import AdminNoticesSection from "@/components/admin/AdminNoticesSection";
 import AdminCatalogSection from "@/components/admin/AdminCatalogSection";
 import AdminHomeContentSection from "@/components/admin/AdminHomeContentSection";
-import AdminBatchContentSection from "@/components/admin/AdminBatchContentSection";
 
 function parseDdMmYyyy(input: string): Date | undefined {
   const t = input.trim();
@@ -77,7 +63,6 @@ const AdminPage = () => {
     | "notices"
     | "catalog"
     | "homeContent"
-    | "addContent"
   >("catalog");
   const [title, setTitle] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
@@ -92,12 +77,6 @@ const AdminPage = () => {
   const [timing, setTiming] = useState("");
   const [teacherName, setTeacherName] = useState("");
   const [selectedBatchId, setSelectedBatchId] = useState<string>("");
-
-  const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
-
-  const [resourceTitle, setResourceTitle] = useState("");
-  const [resourceLink, setResourceLink] = useState("");
-  const [resourceType, setResourceType] = useState<"videos" | "homework" | "studyMaterialPdfs" | "testPapers">("videos");
 
   const selectedBatch = useMemo(
     () => batches.find((batch) => batch.id === selectedBatchId) ?? null,
@@ -200,7 +179,7 @@ const AdminPage = () => {
     }
   };
 
-  const handleCreateBatch = async () => {
+  const handleCreateBatch = () => {
     if (!batchName.trim() || !courseName.trim() || !batchCode.trim() || !timing.trim() || !teacherName.trim()) {
       toast({
         variant: "destructive",
@@ -210,37 +189,11 @@ const AdminPage = () => {
       return;
     }
 
-    const batchCodeUpper = batchCode.trim().toUpperCase();
-
-    // 1. Save to Supabase if configured
-    let supabaseBatchId = makeId();
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data, error } = await supabase
-          .from("batches")
-          .insert({
-            batch_name: batchName.trim(),
-            course_name: courseName.trim(),
-            batch_code: batchCodeUpper,
-            timing: timing.trim(),
-            teacher_name: teacherName.trim(),
-          })
-          .select("id")
-          .single();
-        
-        if (error) throw error;
-        if (data) supabaseBatchId = data.id;
-      } catch (e) {
-        console.error("Supabase batch create error:", e);
-        toast({ variant: "destructive", title: "Cloud sync failed", description: "Batch created locally only." });
-      }
-    }
-
     const newBatch: Batch = {
-      id: supabaseBatchId,
+      id: makeId(),
       batchName: batchName.trim(),
       courseName: courseName.trim(),
-      batchCode: batchCodeUpper,
+      batchCode: batchCode.trim().toUpperCase(),
       timing: timing.trim(),
       teacherName: teacherName.trim(),
       videos: [],
@@ -283,18 +236,6 @@ const AdminPage = () => {
     }));
   };
 
-  const deleteResource = (id: string, type: "videos" | "homework" | "studyMaterialPdfs" | "testPapers") => {
-    if (!selectedBatch) return;
-    const ok = window.confirm("Delete this resource?");
-    if (!ok) return;
-
-    updateSelectedBatch((batch) => ({
-      ...batch,
-      [type]: batch[type].filter((r) => r.id !== id)
-    }));
-    toast({ title: "Deleted", description: "Resource removed." });
-  };
-
   return (
     <div className="min-h-screen pb-20 bg-background">
       <div className="bg-primary px-4 py-3">
@@ -303,106 +244,6 @@ const AdminPage = () => {
             <ArrowLeft size={22} className="text-primary-foreground" />
           </button>
           <h2 className="text-base font-bold text-primary-foreground truncate">Admin Panel</h2>
-        </div>
-        
-        <div className="flex items-center gap-2 ml-auto">
-          <button
-            onClick={() => {
-              setResourceType("videos");
-              setActiveTab("addContent");
-            }}
-            className="w-8 h-8 flex items-center justify-center bg-white/10 rounded-full text-white hover:bg-white/20 transition-colors"
-            title="Add Video"
-          >
-            <Video size={16} />
-          </button>
-          <button
-            onClick={() => {
-              setResourceType("homework");
-              setActiveTab("addContent");
-            }}
-            className="w-8 h-8 flex items-center justify-center bg-white/10 rounded-full text-white hover:bg-white/20 transition-colors"
-            title="Add Homework"
-          >
-            <FileText size={16} />
-          </button>
-          <button
-            onClick={() => {
-              setResourceType("studyMaterialPdfs");
-              setActiveTab("addContent");
-            }}
-            className="w-8 h-8 flex items-center justify-center bg-white/10 rounded-full text-white hover:bg-white/20 transition-colors"
-            title="Add PDF"
-          >
-            <Book size={16} />
-          </button>
-          <button
-            onClick={() => {
-              setResourceType("testPapers");
-              setActiveTab("addContent");
-            }}
-            className="w-8 h-8 flex items-center justify-center bg-white/10 rounded-full text-white hover:bg-white/20 transition-colors"
-            title="Add Test"
-          >
-            <ClipboardList size={16} />
-          </button>
-          
-          <div className="w-px h-4 bg-white/20 mx-1" />
-
-          <Dialog open={isConnectDialogOpen} onOpenChange={setIsConnectDialogOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white shrink-0 h-8 px-3 gap-1.5"
-              >
-                <LinkIcon size={14} /> Connect
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">Select Batch</DialogTitle>
-              </DialogHeader>
-              
-              <div className="space-y-4 py-4">
-                <div className="flex justify-between items-center">
-                  <p className="text-sm text-muted-foreground">Choose a batch to add content</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="gap-1"
-                    onClick={() => {
-                      setActiveTab("addContent");
-                      setIsConnectDialogOpen(false);
-                      setSelectedBatchId("");
-                    }}
-                  >
-                    <Plus size={14} /> Add to Batch
-                  </Button>
-                </div>
-                <div className="grid gap-2">
-                  {batches.length === 0 ? (
-                    <p className="text-center py-8 text-sm text-muted-foreground italic">No batches created yet.</p>
-                  ) : (
-                    batches.map((batch) => (
-                      <button
-                        key={batch.id}
-                        onClick={() => {
-                          setSelectedBatchId(batch.id);
-                          setActiveTab("addContent");
-                          setIsConnectDialogOpen(false);
-                        }}
-                        className="flex flex-col items-start p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors text-left"
-                      >
-                        <span className="font-semibold text-sm">{batch.batchName}</span>
-                        <span className="text-xs text-muted-foreground">{batch.batchCode} • {batch.courseName}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 
@@ -425,6 +266,15 @@ const AdminPage = () => {
             }`}
           >
             Home
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("lessons")}
+            className={`rounded-lg py-2 px-2 text-[11px] sm:text-xs font-semibold transition-colors flex-1 min-w-[4.5rem] ${
+              activeTab === "lessons" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"
+            }`}
+          >
+            Legacy
           </button>
           <button
             type="button"
@@ -460,7 +310,7 @@ const AdminPage = () => {
               activeTab === "homework" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"
             }`}
           >
-            HW (Global)
+            Homework
           </button>
           <button
             type="button"
@@ -471,15 +321,6 @@ const AdminPage = () => {
           >
             Notices
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("addContent")}
-            className={`rounded-lg py-2 px-2 text-[11px] sm:text-xs font-semibold transition-colors flex-1 min-w-[4.5rem] ${
-              activeTab === "addContent" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"
-            }`}
-          >
-            Batch Content
-          </button>
         </div>
 
         {activeTab === "catalog" ? (
@@ -489,6 +330,61 @@ const AdminPage = () => {
         ) : activeTab === "homeContent" ? (
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <AdminHomeContentSection />
+          </div>
+        ) : activeTab === "lessons" ? (
+          <div className="bg-card rounded-xl border border-border p-4 shadow-sm space-y-4">
+            <div>
+              <label className="text-sm font-medium text-foreground">Lesson Title</label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ex: Quadratic Equations - Part 1"
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-foreground">YouTube Link</label>
+              <Input
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-foreground">Category</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as "Algebra" | "Geometry")}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="Algebra">Algebra</option>
+                <option value="Geometry">Geometry</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-foreground">PDF Notes</label>
+              <Input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Upload a PDF file for this lesson.
+              </p>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Prefer the <span className="font-semibold text-foreground">Catalog</span> tab for course → chapter → lecture structure.
+            </p>
+
+            <Button onClick={handleSubmit} disabled={submitting} className="w-full h-11 gap-2">
+              <UploadCloud size={16} />
+              {submitting ? "Saving..." : "Add flat lesson"}
+            </Button>
           </div>
         ) : activeTab === "batches" ? (
           <BatchManager
@@ -520,14 +416,6 @@ const AdminPage = () => {
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <AdminNoticesSection />
           </div>
-        ) : activeTab === "addContent" ? (
-          <AdminBatchContentSection 
-            batches={batches}
-            selectedBatchId={selectedBatchId}
-            setSelectedBatchId={setSelectedBatchId}
-            addResource={addResource}
-            deleteResource={deleteResource}
-          />
         ) : (
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <AdminStudentProfilesSection />
@@ -583,46 +471,6 @@ const BatchManager = ({
   const [studentRollNo, setStudentRollNo] = useState("");
   const [studentMobile, setStudentMobile] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
-  const [isLookingUp, setIsLookingUp] = useState(false);
-
-  const handleLookup = async (field: "email" | "mobile" | "rollNo", val: string) => {
-    const value = val.trim();
-    if (!supabase || value.length < 4 || isLookingUp) return;
-
-    setIsLookingUp(true);
-    try {
-      let query = supabase.from("profiles").select("roll_no, full_name, mobile, email");
-
-      if (field === "email") {
-        if (!value.includes("@")) return;
-        query = query.eq("email", value.toLowerCase());
-      } else if (field === "mobile") {
-        if (value.length < 10) return;
-        query = query.eq("mobile", value);
-      } else if (field === "rollNo") {
-        query = query.eq("roll_no", value);
-      }
-
-      const { data, error } = await query.maybeSingle();
-      if (error) throw error;
-
-      if (data) {
-        setStudentName(data.full_name || "");
-        setStudentRollNo(data.roll_no || "");
-        setStudentMobile(data.mobile || "");
-        setStudentEmail(data.email || "");
-        toast({
-          title: "Student Found",
-          description: `Details for ${data.full_name} loaded from registration records.`,
-        });
-      }
-    } catch (e) {
-      console.error("Lookup error:", e);
-    } finally {
-      setIsLookingUp(false);
-    }
-  };
-
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [editRoll, setEditRoll] = useState("");
   const [editName, setEditName] = useState("");
@@ -631,18 +479,11 @@ const BatchManager = ({
   const [resourceTitle, setResourceTitle] = useState("");
   const [resourceLink, setResourceLink] = useState("");
   const [resourceType, setResourceType] = useState<"videos" | "homework" | "studyMaterialPdfs" | "testPapers">("videos");
-  
-  const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
-  const [editResourceTitle, setEditResourceTitle] = useState("");
-  const [editResourceLink, setEditResourceLink] = useState("");
-  const [editResourceType, setEditResourceType] = useState<"videos" | "homework" | "studyMaterialPdfs" | "testPapers">("videos");
-
   const [attendanceSessionDate, setAttendanceSessionDate] = useState(() => new Date());
   const [hwRecordTitle, setHwRecordTitle] = useState("");
   const [testTitle, setTestTitle] = useState("");
   const [testMaxMarks, setTestMaxMarks] = useState("");
   const [testMarkDraft, setTestMarkDraft] = useState<Record<string, string>>({});
-  const [hwMarkDraft, setHwMarkDraft] = useState<Record<string, { status: HomeworkStatus; details?: string }>>({});
 
   const attendanceDateKey = useMemo(() => format(attendanceSessionDate, "dd-MM-yyyy"), [attendanceSessionDate]);
 
@@ -668,25 +509,19 @@ const BatchManager = ({
     const rec = selectedBatch.attendanceRecords.find(
       (r) => r.studentEmail.toLowerCase() === student.email.toLowerCase() && r.date.trim() === d,
     );
-    return rec ?? null;
+    return rec?.status ?? null;
   };
 
-  const hwRecordForStudent = (student: StudentProfile) => {
-    if (hwMarkDraft[student.id]) {
-      return {
-        status: hwMarkDraft[student.id].status,
-        incompleteDetails: hwMarkDraft[student.id].details,
-      };
-    }
+  const hwStatusForStudent = (student: StudentProfile) => {
     if (!selectedBatch || !hwRecordTitle.trim()) return null;
     const t = hwRecordTitle.trim();
     const rec = selectedBatch.homeworkRecords.find(
       (r) => r.studentEmail.toLowerCase() === student.email.toLowerCase() && r.homeworkTitle.trim() === t,
     );
-    return rec ?? null;
+    return rec?.status ?? null;
   };
 
-  const setAttendanceQuick = (student: StudentProfile, status: "Present" | "Absent" | "Late", lateTime?: string) => {
+  const setAttendanceQuick = (student: StudentProfile, status: "Present" | "Absent") => {
     const date = attendanceDateKey;
     updateSelectedBatch((batch) => {
       const filtered = batch.attendanceRecords.filter(
@@ -702,7 +537,6 @@ const BatchManager = ({
             studentRollNo: student.rollNo,
             date,
             status,
-            lateTime,
           },
         ],
       };
@@ -759,13 +593,9 @@ const BatchManager = ({
     setTestTitle("");
     setTestMaxMarks("");
     setTestMarkDraft({});
-    setHwMarkDraft({});
   }, [selectedBatchId]);
 
-  const saveHomeworkForStudent = (student: StudentProfile) => {
-    const draft = hwMarkDraft[student.id];
-    if (!draft) return;
-
+  const setHomeworkQuick = (student: StudentProfile, status: HomeworkStatus) => {
     const title = hwRecordTitle.trim();
     if (!title) {
       toast({
@@ -775,7 +605,6 @@ const BatchManager = ({
       });
       return;
     }
-
     updateSelectedBatch((batch) => {
       const filtered = batch.homeworkRecords.filter(
         (r) =>
@@ -792,59 +621,12 @@ const BatchManager = ({
             studentEmail: student.email.toLowerCase(),
             studentRollNo: student.rollNo,
             homeworkTitle: title,
-            status: draft.status,
-            incompleteDetails: draft.details,
+            status,
           },
         ],
       };
     });
-
-    setHwMarkDraft((prev) => {
-      const next = { ...prev };
-      delete next[student.id];
-      return next;
-    });
-    toast({ title: "Saved", description: `HW record saved for ${student.name}.` });
   };
-
-  const saveEditedResource = () => {
-    if (!editingResourceId || !selectedBatch) return;
-    if (!editResourceTitle.trim()) return;
-
-    updateSelectedBatch((batch) => {
-      // Remove from old type list if type changed, or update in current list
-      let nextBatch = { ...batch };
-      
-      // We need to find which list it was in and remove it
-      const types = ["videos", "homework", "studyMaterialPdfs", "testPapers"] as const;
-      types.forEach(t => {
-        nextBatch[t] = nextBatch[t].filter(r => r.id !== editingResourceId);
-      });
-
-      // Add to the new/current type list
-      nextBatch[editResourceType] = [
-        ...nextBatch[editResourceType],
-        { id: editingResourceId, title: editResourceTitle.trim(), link: editResourceLink.trim() }
-      ];
-
-      return nextBatch;
-    });
-
-    setEditingResourceId(null);
-    toast({ title: "Updated", description: "Resource updated successfully." });
-  };
-
-  const deleteResource = (id: string, type: "videos" | "homework" | "studyMaterialPdfs" | "testPapers") => {
-     if (!selectedBatch) return;
-     const ok = window.confirm("Delete this resource?");
-     if (!ok) return;
- 
-     updateSelectedBatch((batch) => ({
-       ...batch,
-       [type]: batch[type].filter((r) => r.id !== id)
-     }));
-     toast({ title: "Deleted", description: "Resource removed." });
-   };
 
   const saveEditedStudent = () => {
     if (!editingStudentId || !selectedBatch) return;
@@ -868,10 +650,6 @@ const BatchManager = ({
       });
       return;
     }
-
-    const email = editEmail.trim().toLowerCase();
-    
-    // 1. Update batch in local storage
     updateSelectedBatch((batch) => ({
       ...batch,
       students: batch.students.map((s) =>
@@ -881,34 +659,11 @@ const BatchManager = ({
               rollNo: roll,
               name: editName.trim(),
               mobile: editMobile.trim(),
-              email: email,
+              email: editEmail.trim().toLowerCase(),
             }
           : s,
       ),
     }));
-
-    // 2. Sync with Supabase
-    if (isSupabaseConfigured && supabase) {
-      void (async () => {
-        try {
-          const { error } = await supabase
-            .from("profiles")
-            .update({ 
-              batch_id: selectedBatch.id,
-              batch_code: selectedBatch.batchCode,
-              roll_no: roll 
-            })
-            .eq("email", email);
-          
-          if (!error) {
-            toast({ title: "Profile Sync", description: "Student's cloud profile updated." });
-          }
-        } catch (e) {
-          console.error("Supabase sync error:", e);
-        }
-      })();
-    }
-
     setEditingStudentId(null);
   };
 
@@ -1024,59 +779,16 @@ const BatchManager = ({
               </AccordionTrigger>
               <AccordionContent className="space-y-3 pb-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div className="relative">
-                    <Input
-                      value={studentRollNo}
-                      onChange={(e) => setStudentRollNo(e.target.value)}
-                      onBlur={(e) => handleLookup("rollNo", e.target.value)}
-                      placeholder="Roll no. (unique ID)"
-                    />
-                    {isLookingUp && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      </div>
-                    )}
-                  </div>
-                  <Input
-                    value={studentName}
-                    onChange={(e) => setStudentName(e.target.value)}
-                    placeholder="Student name"
-                  />
-                  <div className="relative">
-                    <Input
-                      value={studentMobile}
-                      onChange={(e) => setStudentMobile(e.target.value)}
-                      onBlur={(e) => handleLookup("mobile", e.target.value)}
-                      placeholder="Mobile no."
-                    />
-                    {isLookingUp && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <Input
-                      value={studentEmail}
-                      onChange={(e) => setStudentEmail(e.target.value)}
-                      onBlur={(e) => handleLookup("email", e.target.value)}
-                      placeholder="Email"
-                    />
-                    {isLookingUp && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      </div>
-                    )}
-                  </div>
+                  <Input value={studentRollNo} onChange={(e) => setStudentRollNo(e.target.value)} placeholder="Roll no. (unique ID)" />
+                  <Input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Student name" />
+                  <Input value={studentMobile} onChange={(e) => setStudentMobile(e.target.value)} placeholder="Mobile no." />
+                  <Input value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="Email" />
                 </div>
-                <p className="text-[10px] text-primary/80 font-medium">
-                  💡 Tip: Enter Roll No, Mobile, or Email and click out to auto-fill details from registration.
-                </p>
                 <p className="text-[11px] text-muted-foreground">
                   Roll number is the unique reference for this batch—use it when adding attendance, HW, and test records.
                 </p>
                 <Button
-                  onClick={async () => {
+                  onClick={() => {
                     if (!studentName.trim() || !studentMobile.trim() || !studentEmail.trim() || !studentRollNo.trim()) {
                       toast({
                         variant: "destructive",
@@ -1086,7 +798,6 @@ const BatchManager = ({
                       return;
                     }
                     const roll = studentRollNo.trim();
-                    const email = studentEmail.trim().toLowerCase();
                     const duplicate = selectedBatch.students.some(
                       (s) => s.rollNo.trim().toLowerCase() === roll.toLowerCase(),
                     );
@@ -1098,8 +809,6 @@ const BatchManager = ({
                       });
                       return;
                     }
-
-                    // 1. Update batch in local storage
                     updateSelectedBatch((batch) => ({
                       ...batch,
                       students: [
@@ -1109,36 +818,10 @@ const BatchManager = ({
                           rollNo: roll,
                           name: studentName.trim(),
                           mobile: studentMobile.trim(),
-                          email: email,
+                          email: studentEmail.trim().toLowerCase(),
                         },
                       ],
                     }));
-
-                    // 2. Update student profile in Supabase if exists
-                    if (isSupabaseConfigured && supabase) {
-                      try {
-                        const { error: profileError } = await supabase
-                          .from("profiles")
-                          .update({ 
-                            batch_id: selectedBatch.id,
-                            batch_code: selectedBatch.batchCode,
-                            roll_no: roll 
-                          })
-                          .eq("email", email);
-                        
-                        if (profileError) {
-                          console.warn("Could not update Supabase profile:", profileError.message);
-                        } else {
-                          toast({ 
-                            title: "Profile Sync", 
-                            description: "Student's cloud profile updated with batch info." 
-                          });
-                        }
-                      } catch (e) {
-                        console.error("Supabase update error:", e);
-                      }
-                    }
-
                     setStudentName("");
                     setStudentRollNo("");
                     setStudentMobile("");
@@ -1184,43 +867,21 @@ const BatchManager = ({
                               <p className="text-[11px] text-muted-foreground mt-0.5 break-all">{s.email}</p>
                               <p className="text-[11px] text-muted-foreground">{s.mobile}</p>
                             </div>
-                            <div className="flex gap-2 shrink-0">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="shrink-0 gap-1 h-8"
-                                onClick={() => {
-                                  setEditingStudentId(s.id);
-                                  setEditRoll(s.rollNo);
-                                  setEditName(s.name);
-                                  setEditMobile(s.mobile);
-                                  setEditEmail(s.email);
-                                }}
-                              >
-                                <Pencil size={12} /> Edit
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="shrink-0 gap-1 h-8 text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                                onClick={() => {
-                                  const ok = window.confirm(`Remove student "${s.name}" from this batch?`);
-                                  if (!ok) return;
-                                  updateSelectedBatch((batch) => ({
-                                    ...batch,
-                                    students: batch.students.filter((item) => item.id !== s.id),
-                                  }));
-                                  toast({
-                                    title: "Student Removed",
-                                    description: `${s.name} has been removed from this batch.`,
-                                  });
-                                }}
-                              >
-                                <Trash2 size={12} /> Remove
-                              </Button>
-                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0 gap-1 h-8"
+                              onClick={() => {
+                                setEditingStudentId(s.id);
+                                setEditRoll(s.rollNo);
+                                setEditName(s.name);
+                                setEditMobile(s.mobile);
+                                setEditEmail(s.email);
+                              }}
+                            >
+                              <Pencil size={12} /> Edit
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -1234,88 +895,34 @@ const BatchManager = ({
               <AccordionTrigger className="text-sm font-semibold py-3 hover:no-underline">
                 <span className="flex items-center gap-2">
                   <NotebookPen size={15} />
-                  View batch content
+                  Course videos, HW, PDFs &amp; test papers
                 </span>
               </AccordionTrigger>
               <AccordionContent className="space-y-3 pb-4">
-                <div className="space-y-4">
-                  {(["videos", "homework", "studyMaterialPdfs", "testPapers"] as const).map((type) => {
-                    const items = selectedBatch[type];
-                    if (items.length === 0) return null;
-                    
-                    return (
-                      <div key={type} className="space-y-2">
-                        <p className="text-[10px] font-semibold text-primary/70 uppercase">
-                          {type === "videos" ? "Videos" : type === "homework" ? "HW" : type === "studyMaterialPdfs" ? "PDFs" : "Tests"}
-                        </p>
-                        <div className="grid gap-2">
-                          {items.map((item) => (
-                            <div key={item.id} className="rounded-lg border border-border bg-muted/20 p-2 text-xs">
-                              {editingResourceId === item.id ? (
-                                <div className="space-y-2">
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <Input value={editResourceTitle} onChange={(e) => setEditResourceTitle(e.target.value)} placeholder="Title" className="h-8" />
-                                    <Input value={editResourceLink} onChange={(e) => setEditResourceLink(e.target.value)} placeholder="Link" className="h-8" />
-                                    <select
-                                      value={editResourceType}
-                                      onChange={(e) => setEditResourceType(e.target.value as any)}
-                                      className="rounded-md border border-input bg-background px-3 py-1 text-xs h-8 sm:col-span-2"
-                                    >
-                                      <option value="videos">Videos</option>
-                                      <option value="homework">HW</option>
-                                      <option value="studyMaterialPdfs">PDFs</option>
-                                      <option value="testPapers">Tests</option>
-                                    </select>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <Button size="xs" className="flex-1" onClick={saveEditedResource}><Check size={12} className="mr-1" /> Save</Button>
-                                    <Button size="xs" variant="outline" className="flex-1" onClick={() => setEditingResourceId(null)}><X size={12} className="mr-1" /> Cancel</Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="min-w-0 flex-1">
-                                    <p className="font-medium truncate">{item.title}</p>
-                                    <p className="text-[10px] text-muted-foreground truncate opacity-70">{item.link}</p>
-                                  </div>
-                                  <div className="flex gap-1">
-                                    <Button
-                                      size="xs"
-                                      variant="ghost"
-                                      className="h-7 w-7 p-0"
-                                      onClick={() => {
-                                        setEditingResourceId(item.id);
-                                        setEditResourceTitle(item.title);
-                                        setEditResourceLink(item.link || "");
-                                        setEditResourceType(type);
-                                      }}
-                                    >
-                                      <Pencil size={12} />
-                                    </Button>
-                                    <Button
-                                      size="xs"
-                                      variant="ghost"
-                                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                                      onClick={() => deleteResource(item.id, type)}
-                                    >
-                                      <Trash2 size={12} />
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {selectedBatch.videos.length === 0 && 
-                   selectedBatch.homework.length === 0 && 
-                   selectedBatch.studyMaterialPdfs.length === 0 && 
-                   selectedBatch.testPapers.length === 0 && (
-                    <p className="text-xs text-muted-foreground italic text-center py-4">No content added to this batch yet.</p>
-                  )}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <select
+                    value={resourceType}
+                    onChange={(e) => setResourceType(e.target.value as "videos" | "homework" | "studyMaterialPdfs" | "testPapers")}
+                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="videos">Course Videos</option>
+                    <option value="homework">HW</option>
+                    <option value="studyMaterialPdfs">Study Material PDF</option>
+                    <option value="testPapers">Test Papers</option>
+                  </select>
+                  <Input value={resourceTitle} onChange={(e) => setResourceTitle(e.target.value)} placeholder="Title" />
+                  <Input value={resourceLink} onChange={(e) => setResourceLink(e.target.value)} placeholder="Link / note" />
                 </div>
+                <Button
+                  onClick={() => {
+                    addResource(resourceType, resourceTitle, resourceLink);
+                    setResourceTitle("");
+                    setResourceLink("");
+                  }}
+                  className="w-full"
+                >
+                  Add Content
+                </Button>
               </AccordionContent>
             </AccordionItem>
 
@@ -1368,105 +975,42 @@ const BatchManager = ({
                     updates the row.
                   </p>
                 </div>
-
-                {selectedBatch.attendanceRecords.length > 0 && (
-                  <div className="space-y-2 mt-4">
-                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Attendance Sessions</p>
-                    <div className="flex flex-wrap gap-2">
-                      {Array.from(new Set(selectedBatch.attendanceRecords.map(r => r.date))).sort((a, b) => {
-                        const dateA = parseDdMmYyyy(a) || new Date(0);
-                        const dateB = parseDdMmYyyy(b) || new Date(0);
-                        return dateB.getTime() - dateA.getTime();
-                      }).map(date => (
-                        <div key={date} className="flex items-center gap-1 bg-muted/30 rounded-md border border-border p-1 pr-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const parsed = parseDdMmYyyy(date);
-                              if (parsed) setAttendanceSessionDate(parsed);
-                            }}
-                            className={cn(
-                              "px-2 py-1 text-[10px] font-semibold rounded transition-colors",
-                              attendanceDateKey === date ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-                            )}
-                          >
-                            {date}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const ok = window.confirm(`Delete all attendance for ${date}?`);
-                              if (!ok) return;
-                              updateSelectedBatch(batch => ({
-                                ...batch,
-                                attendanceRecords: batch.attendanceRecords.filter(r => r.date !== date)
-                              }));
-                              toast({ title: "Deleted", description: `Attendance for ${date} removed.` });
-                            }}
-                            className="text-muted-foreground hover:text-destructive p-0.5"
-                          >
-                            <Trash2 size={10} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {selectedBatch.students.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Add students first.</p>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {selectedBatch.students.map((s) => {
                       const current = attendanceForStudentOnDate(s);
                       return (
                         <div
                           key={s.id}
-                          className="flex items-center justify-between gap-2 py-1.5 border-b border-border/40 last:border-0"
+                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2"
                         >
-                          <div className="min-w-0 flex-1 truncate">
-                            <span className="text-xs font-semibold text-foreground uppercase truncate">
-                              {s.name} - <span className="text-primary/70">{s.rollNo}</span>
-                            </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground">
+                              <span className="text-primary">Roll {s.rollNo}</span> — {s.name}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground truncate">{s.email}</p>
                           </div>
-                          <div className="flex gap-1.5 items-center shrink-0">
+                          <div className="flex gap-2 shrink-0">
                             <Button
                               type="button"
-                              size="xs"
-                              variant={current?.status === "Present" ? "default" : "outline"}
-                              className={cn("w-8 h-8 font-bold", current?.status === "Present" && "ring-2 ring-primary/30")}
+                              size="sm"
+                              variant={current === "Present" ? "default" : "outline"}
+                              className={cn("flex-1 sm:flex-none min-w-[5.5rem]", current === "Present" && "ring-2 ring-primary/30")}
                               onClick={() => setAttendanceQuick(s, "Present")}
                             >
-                              P
+                              Present
                             </Button>
                             <Button
                               type="button"
-                              size="xs"
-                              variant={current?.status === "Absent" ? "destructive" : "outline"}
-                              className={cn("w-8 h-8 font-bold", current?.status === "Absent" && "ring-2 ring-destructive/30")}
+                              size="sm"
+                              variant={current === "Absent" ? "destructive" : "outline"}
+                              className={cn("flex-1 sm:flex-none min-w-[5.5rem]", current === "Absent" && "ring-2 ring-destructive/30")}
                               onClick={() => setAttendanceQuick(s, "Absent")}
                             >
-                              A
+                              Absent
                             </Button>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                type="button"
-                                size="xs"
-                                variant={current?.status === "Late" ? "secondary" : "outline"}
-                                className={cn("px-2.5 h-8 font-bold min-w-[3rem]", current?.status === "Late" && "ring-2 ring-secondary/30 bg-amber-500 text-white hover:bg-amber-600 border-amber-500")}
-                                onClick={() => {
-                                  const time = prompt("Enter late time (e.g. 10m)", current?.lateTime || "");
-                                  if (time !== null) setAttendanceQuick(s, "Late", time);
-                                }}
-                              >
-                                Late
-                              </Button>
-                              {current?.status === "Late" && current.lateTime && (
-                                <span className="text-[10px] font-mono font-medium text-amber-600 bg-amber-50 px-1 rounded border border-amber-100 truncate max-w-[40px]">
-                                  {current.lateTime}
-                                </span>
-                              )}
-                            </div>
                           </div>
                         </div>
                       );
@@ -1493,161 +1037,45 @@ const BatchManager = ({
                     Enter one title, then mark each student with Done, Not done, or Incomplete. Tapping again updates the same student for this homework.
                   </p>
                 </div>
-
-                {selectedBatch.homeworkRecords.length > 0 && (
-                  <div className="space-y-2 mt-4">
-                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Previous HW Records</p>
-                    <div className="flex flex-wrap gap-2">
-                      {Array.from(new Set(selectedBatch.homeworkRecords.map(r => r.homeworkTitle))).map(title => (
-                        <div key={title} className="flex items-center gap-1 bg-muted/30 rounded-md border border-border p-1 pr-2">
-                          <button
-                            type="button"
-                            onClick={() => setHwRecordTitle(title)}
-                            className={cn(
-                              "px-2 py-1 text-[10px] font-semibold rounded transition-colors",
-                              hwRecordTitle === title ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-                            )}
-                          >
-                            {title}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const ok = window.confirm(`Delete all records for HW "${title}"?`);
-                              if (!ok) return;
-                              updateSelectedBatch(batch => ({
-                                ...batch,
-                                homeworkRecords: batch.homeworkRecords.filter(r => r.homeworkTitle !== title)
-                              }));
-                              toast({ title: "Deleted", description: `HW "${title}" records removed.` });
-                            }}
-                            className="text-muted-foreground hover:text-destructive p-0.5"
-                          >
-                            <Trash2 size={10} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {selectedBatch.students.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Add students first.</p>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {selectedBatch.students.map((s) => {
-                      const current = hwRecordForStudent(s);
-                      const isEditing = hwMarkDraft[s.id] !== undefined;
-                      const savedRecord = selectedBatch.homeworkRecords.find(
-                        (r) => r.studentEmail.toLowerCase() === s.email.toLowerCase() && r.homeworkTitle.trim() === hwRecordTitle.trim()
-                      );
-
+                      const current = hwStatusForStudent(s);
                       return (
                         <div
                           key={s.id}
-                          className="flex items-center justify-between gap-2 py-1.5 border-b border-border/40 last:border-0"
+                          className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2"
                         >
-                          <div className="min-w-0 flex-1 truncate">
-                            <span className="text-xs font-semibold text-foreground uppercase truncate">
-                              {s.name} - <span className="text-primary/70">{s.rollNo}</span>
-                            </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground">
+                              <span className="text-primary">Roll {s.rollNo}</span> — {s.name}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground truncate">{s.email}</p>
                           </div>
-
-                          {!isEditing ? (
-                            <div className="flex items-center gap-2">
-                              {savedRecord ? (
-                                <span className={cn(
-                                  "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase",
-                                  savedRecord.status === "Done" ? "bg-green-100 text-green-700" :
-                                  savedRecord.status === "Not done" ? "bg-red-100 text-red-700" :
-                                  "bg-amber-100 text-amber-700"
-                                )}>
-                                  {savedRecord.status === "Done" ? "D" : savedRecord.status === "Not done" ? "N" : "I"}
-                                  {savedRecord.incompleteDetails && ` (${savedRecord.incompleteDetails})`}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] text-muted-foreground italic">No record</span>
-                              )}
-                              <Button
-                                type="button"
-                                size="xs"
-                                variant="ghost"
-                                className="h-7 w-7 p-0"
-                                onClick={() => {
-                                  setHwMarkDraft((prev) => ({
-                                    ...prev,
-                                    [s.id]: { 
-                                      status: savedRecord?.status || "Done", 
-                                      details: savedRecord?.incompleteDetails || "" 
-                                    }
-                                  }));
-                                }}
-                              >
-                                <Pencil size={12} />
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="flex gap-1.5 items-center shrink-0">
-                              {(["Done", "Not done", "Incomplete"] as const).map((st) => {
-                                const selected = hwMarkDraft[s.id]?.status === st;
-                                const label = st === "Done" ? "D" : st === "Not done" ? "N" : "I";
-                                
-                                return (
-                                  <Button
-                                    key={st}
-                                    type="button"
-                                    size="xs"
-                                    variant={
-                                      !selected ? "outline" : st === "Not done" ? "destructive" : "default"
-                                    }
-                                    className={cn(
-                                      "w-8 h-8 font-bold text-xs",
-                                      selected && st === "Incomplete" && "bg-amber-600 text-white hover:bg-amber-600/90 border-amber-600",
-                                    )}
-                                    onClick={() => {
-                                      if (st === "Incomplete") {
-                                        const details = prompt("Enter % completed (e.g. 50%)", hwMarkDraft[s.id]?.details || "");
-                                        if (details !== null) {
-                                          setHwMarkDraft(prev => ({ ...prev, [s.id]: { status: st, details } }));
-                                        }
-                                      } else {
-                                        setHwMarkDraft(prev => ({ ...prev, [s.id]: { status: st, details: "" } }));
-                                      }
-                                    }}
-                                    title={st}
-                                  >
-                                    {label}
-                                  </Button>
-                                );
-                              })}
-                              <div className="flex items-center gap-1 ml-1 border-l pl-2">
+                          <div className="flex flex-wrap gap-2">
+                            {(["Done", "Not done", "Incomplete"] as const).map((st) => {
+                              const selected = current === st;
+                              return (
                                 <Button
+                                  key={st}
                                   type="button"
-                                  size="xs"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => saveHomeworkForStudent(s)}
+                                  size="sm"
+                                  variant={
+                                    !selected ? "outline" : st === "Not done" ? "destructive" : "default"
+                                  }
+                                  className={cn(
+                                    "flex-1 min-w-[4.5rem] text-xs",
+                                    selected && st === "Incomplete" && "bg-amber-600 text-white hover:bg-amber-600/90 border-amber-600",
+                                  )}
+                                  onClick={() => setHomeworkQuick(s, st)}
                                 >
-                                  <Check size={14} className="text-green-600" />
+                                  {st === "Not done" ? "Not done" : st}
                                 </Button>
-                                <Button
-                                  type="button"
-                                  size="xs"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => {
-                                    setHwMarkDraft((prev) => {
-                                      const next = { ...prev };
-                                      delete next[s.id];
-                                      return next;
-                                    });
-                                  }}
-                                >
-                                  <X size={14} className="text-red-600" />
-                                </Button>
-                              </div>
-                            </div>
-                          )}
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}
@@ -1661,176 +1089,120 @@ const BatchManager = ({
                 Add test record ({selectedBatch.testMarksRecords.length})
               </AccordionTrigger>
               <AccordionContent className="space-y-3 pb-4">
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-[11px] font-medium text-muted-foreground ml-1">Test Title</label>
-                    <Input
-                      value={testTitle}
-                      onChange={(e) => setTestTitle(e.target.value)}
-                      placeholder="e.g. Unit Test 2"
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="w-24 shrink-0">
-                    <label className="text-[11px] font-medium text-muted-foreground ml-1">Max Marks</label>
-                    <Input
-                      value={testMaxMarks}
-                      onChange={(e) => setTestMaxMarks(e.target.value)}
-                      placeholder="Max"
-                      className="h-9 font-mono"
-                      inputMode="decimal"
-                    />
-                  </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <Input
+                    value={testTitle}
+                    onChange={(e) => setTestTitle(e.target.value)}
+                    placeholder="Test name (e.g. Unit Test 2 — Algebra)"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Use the same test name for every student. Set max marks once, then enter each student&apos;s score
+                    and save.
+                  </p>
                 </div>
 
-                {selectedBatch.testMarksRecords.length > 0 && (
-                  <div className="space-y-2 mt-4">
-                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Previous Test Records</p>
-                    <div className="flex flex-wrap gap-2">
-                      {Array.from(new Set(selectedBatch.testMarksRecords.map(r => r.testTitle))).map(title => {
-                        const firstRec = selectedBatch.testMarksRecords.find(r => r.testTitle === title);
-                        return (
-                          <div key={title} className="flex items-center gap-1 bg-muted/30 rounded-md border border-border p-1 pr-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTestTitle(title);
-                                if (firstRec) setTestMaxMarks(firstRec.maxMarks);
-                              }}
-                              className={cn(
-                                "px-2 py-1 text-[10px] font-semibold rounded transition-colors",
-                                testTitle === title ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-                              )}
-                            >
-                              {title}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const ok = window.confirm(`Delete all records for test "${title}"?`);
-                                if (!ok) return;
-                                updateSelectedBatch(batch => ({
-                                  ...batch,
-                                  testMarksRecords: batch.testMarksRecords.filter(r => r.testTitle !== title)
-                                }));
-                                toast({ title: "Deleted", description: `Test "${title}" records removed.` });
-                              }}
-                              className="text-muted-foreground hover:text-destructive p-0.5"
-                            >
-                              <Trash2 size={10} />
-                            </button>
-                          </div>
-                        );
-                      })}
+                <Tabs defaultValue="marks" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 h-10">
+                    <TabsTrigger value="marks">Max marks</TabsTrigger>
+                    <TabsTrigger value="pct">%</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="marks" className="space-y-3 pt-3 mt-0">
+                    <div>
+                      <label className="text-sm font-medium text-foreground">Maximum marks (whole test)</label>
+                      <Input
+                        value={testMaxMarks}
+                        onChange={(e) => setTestMaxMarks(e.target.value)}
+                        placeholder="e.g. 50"
+                        className="mt-1 font-mono"
+                        inputMode="decimal"
+                      />
                     </div>
-                  </div>
-                )}
-
-                {selectedBatch.students.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Add students first.</p>
-                ) : (
-                  <div className="space-y-1 mt-4">
-                    {selectedBatch.students.map((s) => {
-                      const obtained = obtainedDisplay(s);
-                      const pct = computeTestPercentage(obtained, testMaxMarks);
-                      const savedRecord = findTestRecord(s);
-                      const isEditing = testMarkDraft[s.id] !== undefined;
-
-                      return (
-                        <div
-                          key={s.id}
-                          className="flex items-center justify-between gap-2 py-1.5 border-b border-border/40 last:border-0"
-                        >
-                          <div className="min-w-0 flex-1 truncate">
-                            <span className="text-xs font-semibold text-foreground uppercase truncate">
-                              {s.name} - <span className="text-primary/70">{s.rollNo}</span>
-                            </span>
-                          </div>
-                          
-                          {!isEditing ? (
-                            <div className="flex items-center gap-2">
-                              {savedRecord ? (
-                                <span className="text-[10px] font-mono font-bold bg-primary/5 text-primary px-2 py-0.5 rounded border border-primary/10">
-                                  {savedRecord.marksObtained} / {savedRecord.maxMarks} ({savedRecord.percentage})
-                                </span>
-                              ) : (
-                                <span className="text-[10px] text-muted-foreground italic">No marks</span>
-                              )}
-                              <Button
-                                type="button"
-                                size="xs"
-                                variant="ghost"
-                                className="h-7 w-7 p-0"
-                                onClick={() => {
-                                  setTestMarkDraft((prev) => ({
-                                    ...prev,
-                                    [s.id]: savedRecord?.marksObtained || ""
-                                  }));
-                                }}
-                              >
-                                <Pencil size={12} />
+                    {selectedBatch.students.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Add students first.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {selectedBatch.students.map((s) => {
+                          const obtained = obtainedDisplay(s);
+                          const pct = computeTestPercentage(obtained, testMaxMarks);
+                          return (
+                            <div
+                              key={s.id}
+                              className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground">
+                                  <span className="text-primary">Roll {s.rollNo}</span> — {s.name}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground truncate">{s.email}</p>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                                <div>
+                                  <label className="text-[11px] font-medium text-muted-foreground">Marks obtained</label>
+                                  <Input
+                                    value={obtained}
+                                    onChange={(e) =>
+                                      setTestMarkDraft((prev) => ({ ...prev, [s.id]: e.target.value }))
+                                    }
+                                    placeholder="0"
+                                    className="mt-0.5 font-mono"
+                                    inputMode="decimal"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[11px] font-medium text-muted-foreground">Max</label>
+                                  <Input
+                                    value={testMaxMarks}
+                                    readOnly
+                                    className="mt-0.5 font-mono bg-muted/50"
+                                    tabIndex={-1}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[11px] font-medium text-muted-foreground">% (auto)</label>
+                                  <div className="mt-0.5 h-10 flex items-center rounded-md border border-input bg-muted/40 px-3 text-sm font-mono tabular-nums">
+                                    {pct}
+                                  </div>
+                                </div>
+                              </div>
+                              <Button type="button" size="sm" className="w-full" onClick={() => saveTestMarkForStudent(s)}>
+                                Save
                               </Button>
                             </div>
-                          ) : (
-                            <div className="flex gap-1 items-center shrink-0">
-                              <div className="w-14 shrink-0">
-                                <Input
-                                  value={obtained}
-                                  onChange={(e) =>
-                                    setTestMarkDraft((prev) => ({ ...prev, [s.id]: e.target.value }))
-                                  }
-                                  placeholder="Obt"
-                                  className="h-8 text-[11px] px-1.5 font-mono text-center"
-                                  inputMode="decimal"
-                                  autoFocus
-                                />
-                              </div>
-                              <div className="w-12 shrink-0">
-                                <div className="h-8 flex items-center justify-center rounded-md border border-input bg-muted/30 px-1 text-[11px] font-mono text-muted-foreground">
-                                  {testMaxMarks || "—"}
-                                </div>
-                              </div>
-                              <div className="w-14 shrink-0">
-                                <div className={cn(
-                                  "h-8 flex items-center justify-center rounded-md border border-input px-1 text-[10px] font-mono tabular-nums",
-                                  pct !== "—" ? "bg-primary/5 text-primary font-bold" : "bg-muted/20 text-muted-foreground"
-                                )}>
-                                  {pct}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1 ml-1 border-l pl-2">
-                                <Button 
-                                  type="button" 
-                                  size="xs" 
-                                  variant="ghost" 
-                                  className="h-8 w-8 p-0" 
-                                  onClick={() => saveTestMarkForStudent(s)}
-                                >
-                                  <Check size={14} className="text-green-600" />
-                                </Button>
-                                <Button 
-                                  type="button" 
-                                  size="xs" 
-                                  variant="ghost" 
-                                  className="h-8 w-8 p-0" 
-                                  onClick={() => {
-                                    setTestMarkDraft((prev) => {
-                                      const next = { ...prev };
-                                      delete next[s.id];
-                                      return next;
-                                    });
-                                  }}
-                                >
-                                  <X size={14} className="text-red-600" />
-                                </Button>
-                              </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="pct" className="space-y-2 pt-3 mt-0">
+                    <p className="text-[11px] text-muted-foreground">
+                      Percentage is calculated as (marks obtained ÷ max marks) × 100. Edit scores in the &quot;Max
+                      marks&quot; tab.
+                    </p>
+                    {!testTitle.trim() || !testMaxMarks.trim() ? (
+                      <p className="text-xs text-muted-foreground">Enter test name and max marks in the other tab.</p>
+                    ) : selectedBatch.students.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Add students first.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {selectedBatch.students.map((s) => {
+                          const obtained = obtainedDisplay(s);
+                          const pct = computeTestPercentage(obtained, testMaxMarks);
+                          return (
+                            <div
+                              key={s.id}
+                              className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm"
+                            >
+                              <span className="min-w-0 truncate">
+                                <span className="font-semibold text-primary">Roll {s.rollNo}</span> — {s.name}
+                              </span>
+                              <span className="shrink-0 font-mono font-semibold tabular-nums">{pct}</span>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
               </AccordionContent>
             </AccordionItem>
           </Accordion>
