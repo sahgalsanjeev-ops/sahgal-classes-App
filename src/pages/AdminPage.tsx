@@ -402,15 +402,6 @@ const AdminPage = () => {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("lessons")}
-            className={`rounded-lg py-2 px-2 text-[11px] sm:text-xs font-semibold transition-colors flex-1 min-w-[4.5rem] ${
-              activeTab === "lessons" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"
-            }`}
-          >
-            Flat Lessons
-          </button>
-          <button
-            type="button"
             onClick={() => setActiveTab("batches")}
             className={`rounded-lg py-2 px-2 text-[11px] sm:text-xs font-semibold transition-colors flex-1 min-w-[4.5rem] ${
               activeTab === "batches" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"
@@ -472,61 +463,6 @@ const AdminPage = () => {
         ) : activeTab === "homeContent" ? (
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <AdminHomeContentSection />
-          </div>
-        ) : activeTab === "lessons" ? (
-          <div className="bg-card rounded-xl border border-border p-4 shadow-sm space-y-4">
-            <div>
-              <label className="text-sm font-medium text-foreground">Lesson Title</label>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ex: Quadratic Equations - Part 1"
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-foreground">YouTube Link</label>
-              <Input
-                value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-foreground">Category</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as "Algebra" | "Geometry")}
-                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="Algebra">Algebra</option>
-                <option value="Geometry">Geometry</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-foreground">PDF Notes</label>
-              <Input
-                type="file"
-                accept="application/pdf"
-                onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
-                className="mt-1"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Upload a PDF file for this lesson.
-              </p>
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Prefer the <span className="font-semibold text-foreground">Catalog</span> tab for course → chapter → lecture structure.
-            </p>
-
-            <Button onClick={handleSubmit} disabled={submitting} className="w-full h-11 gap-2">
-              <UploadCloud size={16} />
-              {submitting ? "Saving..." : "Add flat lesson"}
-            </Button>
           </div>
         ) : activeTab === "batches" ? (
           <BatchManager
