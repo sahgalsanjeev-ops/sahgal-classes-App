@@ -9,50 +9,62 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 
 const MyBatchPage = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("rahul@example.com");
+  const [email, setEmail] = useState("");
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [batchOnlineTests, setBatchOnlineTests] = useState<OnlineTestRow[]>([]);
   const [batchTestsLoading, setBatchTestsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const run = async () => {
-      if (supabase) {
-        const { data: { user } } = await supabase.auth.getUser();
-        const userEmail = user?.email?.toLowerCase();
-        if (userEmail) {
-          setEmail(userEmail);
-          const p = await fetchProfile(user?.id);
-          setProfile(p);
+      setLoading(true);
+      try {
+        if (supabase) {
+          const { data: { user } } = await supabase.auth.getUser();
+          const userEmail = user?.email?.toLowerCase();
+          if (userEmail) {
+            setEmail(userEmail);
+            const p = await fetchProfile(user?.id);
+            setProfile(p);
+          }
         }
-      }
-      // Combine localStorage batches with Supabase batches
-      const localBatches = getBatches();
-      const dbBatches = await fetchBatchesFromSupabase();
-      
-      // Merge: priority to localStorage if ID matches (to keep local resources for now)
-      const merged = [...dbBatches];
-      localBatches.forEach(lb => {
-        const idx = merged.findIndex(mb => mb.id === lb.id || mb.batchCode === lb.batchCode);
-        if (idx !== -1) {
-          merged[idx] = { ...merged[idx], ...lb };
-        } else {
-          merged.push(lb);
-        }
-      });
+        // Combine localStorage batches with Supabase batches
+        const localBatches = getBatches();
+        const dbBatches = await fetchBatchesFromSupabase();
+        
+        // Merge: priority to localStorage if ID matches (to keep local resources for now)
+        const merged = [...dbBatches];
+        localBatches.forEach(lb => {
+          const idx = merged.findIndex(mb => mb.id === lb.id || (mb.batchCode && lb.batchCode && mb.batchCode.toLowerCase() === lb.batchCode.toLowerCase()));
+          if (idx !== -1) {
+            merged[idx] = { ...merged[idx], ...lb };
+          } else {
+            merged.push(lb);
+          }
+        });
 
-      setBatches(merged);
+        setBatches(merged);
+      } catch (e) {
+        console.error("MyBatchPage load error:", e);
+      } finally {
+        setLoading(false);
+      }
     };
     void run();
   }, []);
 
   const { myBatch, me } = useMemo(() => {
     // 1. Try finding by batch_id/batch_code from profile directly
-    const targetBatchCode = profile?.batch_code || profile?.batches?.batch_code;
+    const targetBatchCode = (profile?.batch_code || profile?.batches?.batch_code || "").trim().toLowerCase();
     const targetBatchId = profile?.batch_id;
 
     if (targetBatchId || targetBatchCode) {
-      const b = batches.find(x => (targetBatchId && x.id === targetBatchId) || (targetBatchCode && x.batchCode === targetBatchCode));
+      const b = batches.find(x => 
+        (targetBatchId && x.id === targetBatchId) || 
+        (targetBatchCode && x.batchCode && x.batchCode.toLowerCase() === targetBatchCode)
+      );
+      
       if (b) {
         // Find me in this batch or create a mock student profile from profile row
         const student = b.students.find(s => s.email.toLowerCase() === email.toLowerCase()) || {
@@ -68,9 +80,11 @@ const MyBatchPage = () => {
 
     // 2. Fallback to searching all batches
     const em = email.toLowerCase();
-    for (const batch of batches) {
-      const student = batch.students.find((s) => s.email.toLowerCase() === em) ?? null;
-      if (student) return { myBatch: batch, me: student };
+    if (em) {
+      for (const batch of batches) {
+        const student = batch.students.find((s) => s.email.toLowerCase() === em) ?? null;
+        if (student) return { myBatch: batch, me: student };
+      }
     }
     return { myBatch: null as Batch | null, me: null as StudentProfile | null };
   }, [batches, email, profile]);
@@ -153,11 +167,16 @@ const MyBatchPage = () => {
       </div>
 
       <div className="px-4 mt-5 space-y-4">
-        {!myBatch || !me ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12 space-y-3">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-sm text-muted-foreground">Loading batch details...</p>
+          </div>
+        ) : !myBatch || !me ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
             <p className="text-sm font-semibold text-foreground">No batch assigned yet</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Ask admin to add your profile (email must match your login): {email}
+              Ask admin to add your profile (email must match your login): {email || "Checking..."}
             </p>
           </div>
         ) : (
