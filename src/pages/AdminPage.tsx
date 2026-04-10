@@ -14,6 +14,7 @@ import {
   Check,
   X,
   Calendar as CalendarIcon,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,17 +44,6 @@ import AdminNoticesSection from "@/components/admin/AdminNoticesSection";
 import AdminCatalogSection from "@/components/admin/AdminCatalogSection";
 import AdminHomeContentSection from "@/components/admin/AdminHomeContentSection";
 
-function parseDdMmYyyy(input: string): Date | undefined {
-  const t = input.trim();
-  const m = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(t);
-  if (!m) return undefined;
-  const day = parseInt(m[1], 10);
-  const month = parseInt(m[2], 10) - 1;
-  const year = parseInt(m[3], 10);
-  const d = new Date(year, month, day);
-  if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return undefined;
-  return d;
-}
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -519,6 +509,9 @@ const BatchManager = ({
   addResource,
   updateSelectedBatch,
 }: BatchManagerProps) => {
+  const [attendanceSessionDate, setAttendanceSessionDate] = useState(() => new Date());
+  const attendanceDateKey = useMemo(() => format(attendanceSessionDate, "dd-MM-yyyy"), [attendanceSessionDate]);
+
   const [isEditingBatch, setIsEditingBatch] = useState(false);
   const [editBatchName, setEditBatchName] = useState("");
   const [editCourseName, setEditCourseName] = useState("");
@@ -536,11 +529,77 @@ const BatchManager = ({
   const [resourceTitle, setResourceTitle] = useState("");
   const [resourceLink, setResourceLink] = useState("");
   const [resourceType, setResourceType] = useState<"videos" | "homework" | "studyMaterialPdfs" | "testPapers">("videos");
-  const [attendanceSessionDate, setAttendanceSessionDate] = useState(() => new Date());
   const [hwRecordTitle, setHwRecordTitle] = useState("");
   const [testTitle, setTestTitle] = useState("");
   const [testMaxMarks, setTestMaxMarks] = useState("");
   const [testMarkDraft, setTestMarkDraft] = useState<Record<string, string>>({});
+  const [attendanceDraft, setAttendanceDraft] = useState<Record<string, { status: "Present" | "Absent" | "Late"; minutesLate?: number }>>({});
+  const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+
+  // Load existing attendance into draft when date or batch changes
+  useEffect(() => {
+    if (!selectedBatch) {
+      setAttendanceDraft({});
+      return;
+    }
+    const date = attendanceDateKey;
+    const draft: Record<string, { status: "Present" | "Absent" | "Late"; minutesLate?: number }> = {};
+
+    selectedBatch.students.forEach((s) => {
+      const rec = selectedBatch.attendanceRecords.find(
+        (r) => r.studentEmail.toLowerCase() === s.email.toLowerCase() && r.date.trim() === date,
+      );
+      if (rec) {
+        draft[s.id] = { status: rec.status as "Present" | "Absent" | "Late", minutesLate: rec.minutesLate };
+      }
+    });
+    setAttendanceDraft(draft);
+  }, [selectedBatchId, attendanceDateKey, selectedBatch?.students]);
+
+  const markAllPresent = () => {
+    if (!selectedBatch) return;
+    const draft: Record<string, { status: "Present" | "Absent" | "Late"; minutesLate?: number }> = { ...attendanceDraft };
+    selectedBatch.students.forEach((s) => {
+      draft[s.id] = { status: "Present" };
+    });
+    setAttendanceDraft(draft);
+  };
+
+  const saveAttendance = async () => {
+    if (!selectedBatch) return;
+    setIsSavingAttendance(true);
+    try {
+      const date = attendanceDateKey;
+
+      await updateSelectedBatch((batch) => {
+        // Remove existing records for THIS date
+        const otherDates = batch.attendanceRecords.filter((r) => r.date.trim() !== date);
+
+        // Add new records from draft
+        const newRecords = batch.students
+          .filter((s) => attendanceDraft[s.id])
+          .map((s) => ({
+            id: makeId(),
+            studentEmail: s.email.toLowerCase(),
+            studentRollNo: s.rollNo,
+            date,
+            status: attendanceDraft[s.id].status,
+            minutesLate: attendanceDraft[s.id].minutesLate,
+          }));
+
+        return {
+          ...batch,
+          attendanceRecords: [...otherDates, ...newRecords as any],
+        };
+      });
+
+      toast({ title: "Attendance Saved", description: `Attendance for ${date} updated successfully.` });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Save failed", description: error.message });
+    } finally {
+      setIsSavingAttendance(false);
+    }
+  };
 
   const startEditingBatch = () => {
     if (!selectedBatch) return;
@@ -581,8 +640,6 @@ const BatchManager = ({
     toast({ title: "Student removed", description: "Student detached from this batch." });
   };
 
-  const attendanceDateKey = useMemo(() => format(attendanceSessionDate, "dd-MM-yyyy"), [attendanceSessionDate]);
-
   const findTestRecord = (student: StudentProfile) => {
     if (!selectedBatch) return undefined;
     const t = testTitle.trim();
@@ -599,15 +656,6 @@ const BatchManager = ({
     return rec?.marksObtained ?? legacy?.marks ?? "";
   };
 
-  const attendanceForStudentOnDate = (student: StudentProfile) => {
-    if (!selectedBatch) return null;
-    const d = attendanceDateKey;
-    const rec = selectedBatch.attendanceRecords.find(
-      (r) => r.studentEmail.toLowerCase() === student.email.toLowerCase() && r.date.trim() === d,
-    );
-    return rec?.status ?? null;
-  };
-
   const hwStatusForStudent = (student: StudentProfile) => {
     if (!selectedBatch || !hwRecordTitle.trim()) return null;
     const t = hwRecordTitle.trim();
@@ -615,28 +663,6 @@ const BatchManager = ({
       (r) => r.studentEmail.toLowerCase() === student.email.toLowerCase() && r.homeworkTitle.trim() === t,
     );
     return rec?.status ?? null;
-  };
-
-  const setAttendanceQuick = (student: StudentProfile, status: "Present" | "Absent") => {
-    const date = attendanceDateKey;
-    updateSelectedBatch((batch) => {
-      const filtered = batch.attendanceRecords.filter(
-        (r) => !(r.studentEmail.toLowerCase() === student.email.toLowerCase() && r.date.trim() === date),
-      );
-      return {
-        ...batch,
-        attendanceRecords: [
-          ...filtered,
-          {
-            id: makeId(),
-            studentEmail: student.email.toLowerCase(),
-            studentRollNo: student.rollNo,
-            date,
-            status,
-          },
-        ],
-      };
-    });
   };
 
   const saveTestMarkForStudent = (student: StudentProfile) => {
@@ -1014,18 +1040,19 @@ const BatchManager = ({
                   Add attendance ({selectedBatch.attendanceRecords.length})
                 </span>
               </AccordionTrigger>
-              <AccordionContent className="space-y-3 pb-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Date for this session</label>
-                  <div className="flex flex-col sm:flex-row gap-2">
+              <AccordionContent className="space-y-4 pb-4 px-1">
+                <div className="flex flex-col sm:flex-row items-end gap-3 bg-muted/30 p-3 rounded-xl">
+                  <div className="space-y-1.5 flex-1 w-full">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase ml-1">Session Date</label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           type="button"
                           variant="outline"
-                          className={cn("w-full sm:max-w-[240px] justify-start text-left font-normal")}
+                          className={cn("w-full justify-start text-left font-semibold h-11 rounded-lg border-2", 
+                            "hover:border-primary/50 hover:bg-background transition-all")}
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                          <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
                           {attendanceDateKey}
                         </Button>
                       </PopoverTrigger>
@@ -1033,69 +1060,126 @@ const BatchManager = ({
                         <Calendar
                           mode="single"
                           selected={attendanceSessionDate}
-                          onSelect={(d) => {
-                            if (d) setAttendanceSessionDate(d);
-                          }}
+                          onSelect={(d) => d && setAttendanceSessionDate(d)}
                           initialFocus
                         />
                       </PopoverContent>
                     </Popover>
-                    <Input
-                      value={attendanceDateKey}
-                      onChange={(e) => {
-                        const parsed = parseDdMmYyyy(e.target.value);
-                        if (parsed) setAttendanceSessionDate(parsed);
-                      }}
-                      placeholder="DD-MM-YYYY"
-                      className="sm:flex-1 font-mono text-sm"
-                      aria-label="Attendance date (type or use calendar)"
-                    />
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Use the calendar or type the date. Tap Present or Absent for each student; same date + student
-                    updates the row.
-                  </p>
+                  <Button 
+                    type="button" 
+                    onClick={markAllPresent}
+                    variant="secondary"
+                    className="h-11 px-6 font-bold gap-2 rounded-lg border-2 border-primary/20 hover:border-primary/40"
+                  >
+                    <Check className="text-primary" size={18} />
+                    Mark All Present
+                  </Button>
                 </div>
+
                 {selectedBatch.students.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Add students first.</p>
+                  <div className="py-8 text-center border-2 border-dashed rounded-xl">
+                    <p className="text-sm text-muted-foreground">Add students to this batch first.</p>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {selectedBatch.students.map((s) => {
-                      const current = attendanceForStudentOnDate(s);
+                      const draft = attendanceDraft[s.id];
+                      const status = draft?.status;
+                      const isLate = status === "Late";
+
                       return (
                         <div
                           key={s.id}
-                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2"
+                          className={cn(
+                            "flex flex-col gap-3 rounded-xl border-2 p-3 transition-all",
+                            status === "Present" ? "border-green-100 bg-green-50/30" : 
+                            status === "Absent" ? "border-red-100 bg-red-50/30" : 
+                            status === "Late" ? "border-yellow-200 bg-yellow-50" : 
+                            "border-border bg-background"
+                          )}
                         >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-foreground">
-                              <span className="text-primary">Roll {s.rollNo}</span> — {s.name}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground truncate">{s.email}</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold text-foreground">
+                                <span className="text-primary">Roll {s.rollNo}</span> — {s.name}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground truncate">{s.email}</p>
+                            </div>
+                            <div className="flex gap-1.5 p-1 bg-muted/50 rounded-lg shrink-0">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={status === "Present" ? "default" : "ghost"}
+                                className={cn(
+                                  "h-8 px-3 text-[11px] font-bold rounded-md transition-all",
+                                  status === "Present" ? "bg-green-600 hover:bg-green-700 shadow-sm" : "text-muted-foreground hover:text-green-600"
+                                )}
+                                onClick={() => setAttendanceDraft(prev => ({ ...prev, [s.id]: { status: "Present" } }))}
+                              >
+                                Present
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={status === "Late" ? "default" : "ghost"}
+                                className={cn(
+                                  "h-8 px-3 text-[11px] font-bold rounded-md transition-all",
+                                  status === "Late" ? "bg-yellow-500 hover:bg-yellow-600 shadow-sm" : "text-muted-foreground hover:text-yellow-600"
+                                )}
+                                onClick={() => setAttendanceDraft(prev => ({ ...prev, [s.id]: { status: "Late", minutesLate: draft?.minutesLate || 0 } }))}
+                              >
+                                Late
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={status === "Absent" ? "default" : "ghost"}
+                                className={cn(
+                                  "h-8 px-3 text-[11px] font-bold rounded-md transition-all",
+                                  status === "Absent" ? "bg-red-600 hover:bg-red-700 shadow-sm" : "text-muted-foreground hover:text-red-600"
+                                )}
+                                onClick={() => setAttendanceDraft(prev => ({ ...prev, [s.id]: { status: "Absent" } }))}
+                              >
+                                Absent
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex gap-2 shrink-0">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={current === "Present" ? "default" : "outline"}
-                              className={cn("flex-1 sm:flex-none min-w-[5.5rem]", current === "Present" && "ring-2 ring-primary/30")}
-                              onClick={() => setAttendanceQuick(s, "Present")}
-                            >
-                              Present
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={current === "Absent" ? "destructive" : "outline"}
-                              className={cn("flex-1 sm:flex-none min-w-[5.5rem]", current === "Absent" && "ring-2 ring-destructive/30")}
-                              onClick={() => setAttendanceQuick(s, "Absent")}
-                            >
-                              Absent
-                            </Button>
-                          </div>
+
+                          {isLate && (
+                            <div className="flex items-center gap-3 pl-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                              <label className="text-[10px] font-bold text-yellow-800 uppercase">Minutes Late:</label>
+                              <Input
+                                type="number"
+                                value={draft?.minutesLate || ""}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value, 10);
+                                  setAttendanceDraft(prev => ({ 
+                                    ...prev, 
+                                    [s.id]: { ...prev[s.id], minutesLate: isNaN(val) ? 0 : val } 
+                                  }));
+                                }}
+                                className="h-8 w-20 text-xs font-bold border-yellow-300 focus-visible:ring-yellow-400 bg-white"
+                                placeholder="Min"
+                              />
+                            </div>
+                          )}
                         </div>
                       );
                     })}
+
+                    <Button 
+                      onClick={saveAttendance} 
+                      disabled={isSavingAttendance}
+                      className="w-full h-14 mt-4 text-base font-bold gap-2 rounded-xl shadow-lg hover:shadow-primary/20 transition-all"
+                    >
+                      {isSavingAttendance ? (
+                        <Loader2 className="animate-spin" size={20} />
+                      ) : (
+                        <ClipboardCheck size={20} />
+                      )}
+                      {isSavingAttendance ? "Saving Attendance..." : "Save Attendance"}
+                    </Button>
                   </div>
                 )}
               </AccordionContent>
