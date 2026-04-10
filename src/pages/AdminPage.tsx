@@ -844,64 +844,6 @@ const BatchManager = ({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              className="rounded-xl border border-border bg-card p-3 text-left hover:bg-muted/50 transition-colors"
-              onClick={() => {
-                const el = document.getElementById("batch-section-students");
-                el?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            >
-              <Users size={14} className="text-primary mb-1" />
-              Students: {selectedBatch.students.length}
-            </button>
-            <button
-              type="button"
-              className="rounded-xl border border-border bg-card p-3 text-left hover:bg-muted/50 transition-colors"
-              onClick={() => {
-                const el = document.getElementById("batch-section-content");
-                el?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            >
-              <BookOpen size={14} className="text-primary mb-1" />
-              Built-in content: {selectedBatch.videos.length + selectedBatch.homework.length + selectedBatch.studyMaterialPdfs.length + selectedBatch.testPapers.length}
-            </button>
-            <button
-              type="button"
-              className="rounded-xl border border-border bg-card p-3 text-left hover:bg-muted/50 transition-colors"
-              onClick={() => {
-                const el = document.getElementById("batch-section-attendance");
-                el?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            >
-              <ClipboardCheck size={14} className="text-primary mb-1" />
-              Attendance records: {selectedBatch.attendanceRecords.length}
-            </button>
-            <button
-              type="button"
-              className="rounded-xl border border-border bg-card p-3 text-left hover:bg-muted/50 transition-colors"
-              onClick={() => {
-                const el = document.getElementById("batch-section-tests");
-                el?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            >
-              <BarChart3 size={14} className="text-primary mb-1" />
-              Test records: {selectedBatch.testMarksRecords.length}
-            </button>
-            <button
-              type="button"
-              className="rounded-xl border border-border bg-card p-3 text-left hover:bg-muted/50 transition-colors col-span-2"
-              onClick={() => {
-                const el = document.getElementById("batch-section-hw");
-                el?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            >
-              <NotebookPen size={14} className="text-primary mb-1 inline mr-1" />
-              HW records: {selectedBatch.homeworkRecords.length} — tap to add
-            </button>
-          </div>
-
           <Accordion type="multiple" className="rounded-xl border border-border bg-card px-2 shadow-sm">
             <AccordionItem value="students" id="batch-section-students" className="border-b-0">
               <AccordionTrigger className="text-sm font-semibold py-3 hover:no-underline">
