@@ -1,38 +1,77 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Clock, FileText } from "lucide-react";
-import { Batch, computeTestPercentage, getBatches, StudentProfile } from "@/lib/batches";
+import { Batch, computeTestPercentage, fetchBatchesSupabase, getBatches, makeId, StudentProfile } from "@/lib/batches";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { OnlineTestRow } from "@/lib/onlineTests";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const MyBatchPage = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("rahul@example.com");
+  const [email, setEmail] = useState("");
+  const [profile, setProfile] = useState<any>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [loading, setLoading] = useState(true);
   const [batchOnlineTests, setBatchOnlineTests] = useState<OnlineTestRow[]>([]);
   const [batchTestsLoading, setBatchTestsLoading] = useState(false);
 
   useEffect(() => {
-    const run = async () => {
+    const loadData = async () => {
+      setLoading(true);
+      // 1. Get user and profile
       if (supabase) {
-        const { data } = await supabase.auth.getUser();
-        const userEmail = data.user?.email?.toLowerCase();
-        if (userEmail) setEmail(userEmail);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setEmail(user.email || "");
+          const { data: p } = await supabase
+            .from("profiles")
+            .select("*, batches(*)")
+            .eq("id", user.id)
+            .maybeSingle();
+          setProfile(p);
+        }
       }
-      setBatches(getBatches());
+
+      // 2. Load batches from Supabase
+      const sb = await fetchBatchesSupabase();
+      if (sb.length > 0) {
+        setBatches(sb);
+      } else {
+        setBatches(getBatches());
+      }
+      setLoading(false);
     };
-    void run();
+    void loadData();
   }, []);
 
   const { myBatch, me } = useMemo(() => {
+    if (!email && !profile) return { myBatch: null, me: null };
+    
+    // Priority 1: Find batch by batch_code/id in profile
+    const targetCode = profile?.batch_code || profile?.batches?.batch_code;
+    const targetId = profile?.batch_id;
+    
+    if (targetId || targetCode) {
+      const b = batches.find(x => (targetId && x.id === targetId) || (targetCode && x.batchCode === targetCode));
+      if (b) {
+        const student = b.students.find(s => s.email.toLowerCase() === email.toLowerCase()) || {
+          id: profile?.id || makeId(),
+          rollNo: profile?.roll_no || "",
+          name: profile?.full_name || "",
+          email: profile?.email || email
+        };
+        return { myBatch: b, me: student as StudentProfile };
+      }
+    }
+
+    // Priority 2: Search all batches for this email
     const em = email.toLowerCase();
     for (const batch of batches) {
       const student = batch.students.find((s) => s.email.toLowerCase() === em) ?? null;
       if (student) return { myBatch: batch, me: student };
     }
     return { myBatch: null, me: null };
-  }, [batches, email]);
+  }, [batches, email, profile]);
 
   const myAttendance = useMemo(() => {
     if (!myBatch || !me) return [];
@@ -106,7 +145,12 @@ const MyBatchPage = () => {
       </div>
 
       <div className="px-4 mt-5 space-y-4">
-        {!myBatch || !me ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <Clock className="animate-spin mb-2" size={24} />
+            <p className="text-sm">Loading batch details...</p>
+          </div>
+        ) : !myBatch || !me ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
             <p className="text-sm font-semibold text-foreground">No batch assigned yet</p>
             <p className="text-xs text-muted-foreground mt-1">

@@ -1,3 +1,5 @@
+import { supabase, isSupabaseConfigured } from "./supabase";
+
 export type StudentProfile = {
   id: string;
   /** Unique within the batch; used to look up records */
@@ -86,6 +88,88 @@ export const findStudentByRef = (batch: Batch, ref: string): StudentProfile | nu
   return batch.students.find((s) => s.rollNo.trim().toLowerCase() === roll) ?? null;
 };
 
+/** Fetch all batches from Supabase */
+export const fetchBatchesSupabase = async (): Promise<Batch[]> => {
+  if (!isSupabaseConfigured || !supabase) return [];
+  
+  const { data, error } = await supabase
+    .from("batches")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("fetchBatchesSupabase error:", error);
+    return [];
+  }
+
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    batchName: row.batch_name,
+    courseName: row.course_name,
+    batchCode: row.batch_code,
+    timing: row.timing,
+    teacherName: row.teacher_name,
+    videos: row.videos || [],
+    homework: row.homework || [],
+    studyMaterialPdfs: row.study_material_pdfs || [],
+    testPapers: row.test_papers || [],
+    students: row.students || [],
+    attendanceRecords: row.attendance_records || [],
+    homeworkRecords: row.homework_records || [],
+    testMarksRecords: row.test_marks_records || [],
+    createdAt: row.created_at,
+  }));
+};
+
+/** Save or update a batch in Supabase */
+export const saveBatchSupabase = async (batch: Batch): Promise<boolean> => {
+  if (!isSupabaseConfigured || !supabase) return false;
+
+  const row = {
+    id: batch.id,
+    batch_name: batch.batchName,
+    course_name: batch.courseName,
+    batch_code: batch.batchCode,
+    timing: batch.timing,
+    teacher_name: batch.teacherName,
+    videos: batch.videos,
+    homework: batch.homework,
+    study_material_pdfs: batch.studyMaterialPdfs,
+    test_papers: batch.testPapers,
+    students: batch.students,
+    attendance_records: batch.attendanceRecords,
+    homework_records: batch.homeworkRecords,
+    test_marks_records: batch.testMarksRecords,
+    created_at: batch.createdAt,
+  };
+
+  const { error } = await supabase
+    .from("batches")
+    .upsert(row, { onConflict: "id" });
+
+  if (error) {
+    console.error("saveBatchSupabase error:", error);
+    return false;
+  }
+  return true;
+};
+
+/** Delete a batch from Supabase */
+export const deleteBatchSupabase = async (id: string): Promise<boolean> => {
+  if (!isSupabaseConfigured || !supabase) return false;
+
+  const { error } = await supabase
+    .from("batches")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("deleteBatchSupabase error:", error);
+    return false;
+  }
+  return true;
+};
+
 export const getBatches = (): Batch[] => {
   if (typeof window === "undefined") return [];
   const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -131,3 +215,4 @@ export const saveBatches = (batches: Batch[]) => {
 };
 
 export const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+
