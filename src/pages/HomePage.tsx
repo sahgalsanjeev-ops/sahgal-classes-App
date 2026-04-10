@@ -5,6 +5,7 @@ import { Megaphone, NotebookPen, Pencil, Trash2 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import HomeBannerSlider from "@/components/home/HomeBannerSlider";
 import ContinueLearningCard from "@/components/home/ContinueLearningCard";
+import HomeHighlightsRail from "@/components/home/HomeHighlightsRail";
 import HomeLiveClassesRail from "@/components/home/HomeLiveClassesRail";
 import HomeTestimonialsRail from "@/components/home/HomeTestimonialsRail";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
@@ -146,6 +147,7 @@ const HomePage = () => {
       <AppHeader />
       <HomeBannerSlider />
       <ContinueLearningCard />
+      <HomeHighlightsRail />
 
       {/* Notice board + pending homework */}
       <div className="px-4 mt-5 space-y-4">
