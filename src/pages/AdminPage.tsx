@@ -1082,7 +1082,7 @@ const BatchManager = ({
                     <p className="text-sm text-muted-foreground">Add students to this batch first.</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {selectedBatch.students.map((s) => {
                       const draft = attendanceDraft[s.id];
                       const status = draft?.status;
@@ -1092,7 +1092,7 @@ const BatchManager = ({
                         <div
                           key={s.id}
                           className={cn(
-                            "flex flex-col gap-3 rounded-xl border-2 p-3 transition-all",
+                            "flex flex-col gap-2 rounded-lg border-2 p-2 transition-all",
                             status === "Present" ? "border-green-100 bg-green-50/30" : 
                             status === "Absent" ? "border-red-100 bg-red-50/30" : 
                             status === "Late" ? "border-yellow-200 bg-yellow-50" : 
@@ -1102,41 +1102,71 @@ const BatchManager = ({
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-bold text-foreground">
-                                <span className="text-primary">Roll {s.rollNo}</span> — {s.name}
+                                {s.name} <span className="text-primary font-medium ml-1">({s.rollNo})</span>
                               </p>
-                              <p className="text-[11px] text-muted-foreground truncate">{s.email}</p>
                             </div>
-                            <div className="flex gap-1.5 p-1 bg-muted/50 rounded-lg shrink-0">
+                            <div className="flex gap-1 p-1 bg-muted/50 rounded-lg shrink-0">
                               <Button
                                 type="button"
                                 size="sm"
                                 variant={status === "Present" ? "default" : "ghost"}
                                 className={cn(
-                                  "h-8 px-3 text-[11px] font-bold rounded-md transition-all",
+                                  "h-7 px-2.5 text-[10px] font-bold rounded-md transition-all",
                                   status === "Present" ? "bg-green-600 hover:bg-green-700 shadow-sm" : "text-muted-foreground hover:text-green-600"
                                 )}
                                 onClick={() => setAttendanceDraft(prev => ({ ...prev, [s.id]: { status: "Present" } }))}
                               >
                                 Present
                               </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant={status === "Late" ? "default" : "ghost"}
-                                className={cn(
-                                  "h-8 px-3 text-[11px] font-bold rounded-md transition-all",
-                                  status === "Late" ? "bg-yellow-500 hover:bg-yellow-600 shadow-sm" : "text-muted-foreground hover:text-yellow-600"
-                                )}
-                                onClick={() => setAttendanceDraft(prev => ({ ...prev, [s.id]: { status: "Late", minutesLate: draft?.minutesLate || 0 } }))}
-                              >
-                                Late
-                              </Button>
+                              
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={status === "Late" ? "default" : "ghost"}
+                                    className={cn(
+                                      "h-7 px-2.5 text-[10px] font-bold rounded-md transition-all min-w-[4.5rem]",
+                                      status === "Late" ? "bg-yellow-500 hover:bg-yellow-600 shadow-sm" : "text-muted-foreground hover:text-yellow-600"
+                                    )}
+                                  >
+                                    {status === "Late" && draft?.minutesLate ? `Late (${draft.minutesLate}m)` : "Late"}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-40 p-3" side="top" align="center">
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Minutes Late</label>
+                                    <div className="flex gap-2">
+                                      <Input
+                                        type="number"
+                                        autoFocus
+                                        value={draft?.minutesLate || ""}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value, 10);
+                                          setAttendanceDraft(prev => ({ 
+                                            ...prev, 
+                                            [s.id]: { status: "Late", minutesLate: isNaN(val) ? 0 : val } 
+                                          }));
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            // Close on enter (Popover does this naturally if focused away, but here we just need to confirm)
+                                          }
+                                        }}
+                                        className="h-8 text-xs font-bold"
+                                        placeholder="Min"
+                                      />
+                                    </div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+
                               <Button
                                 type="button"
                                 size="sm"
                                 variant={status === "Absent" ? "default" : "ghost"}
                                 className={cn(
-                                  "h-8 px-3 text-[11px] font-bold rounded-md transition-all",
+                                  "h-7 px-2.5 text-[10px] font-bold rounded-md transition-all",
                                   status === "Absent" ? "bg-red-600 hover:bg-red-700 shadow-sm" : "text-muted-foreground hover:text-red-600"
                                 )}
                                 onClick={() => setAttendanceDraft(prev => ({ ...prev, [s.id]: { status: "Absent" } }))}
@@ -1145,25 +1175,6 @@ const BatchManager = ({
                               </Button>
                             </div>
                           </div>
-
-                          {isLate && (
-                            <div className="flex items-center gap-3 pl-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                              <label className="text-[10px] font-bold text-yellow-800 uppercase">Minutes Late:</label>
-                              <Input
-                                type="number"
-                                value={draft?.minutesLate || ""}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10);
-                                  setAttendanceDraft(prev => ({ 
-                                    ...prev, 
-                                    [s.id]: { ...prev[s.id], minutesLate: isNaN(val) ? 0 : val } 
-                                  }));
-                                }}
-                                className="h-8 w-20 text-xs font-bold border-yellow-300 focus-visible:ring-yellow-400 bg-white"
-                                placeholder="Min"
-                              />
-                            </div>
-                          )}
                         </div>
                       );
                     })}
