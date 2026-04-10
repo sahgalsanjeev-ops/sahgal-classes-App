@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Megaphone, NotebookPen } from "lucide-react";
+import { Megaphone, NotebookPen, Pencil, Trash2 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import HomeBannerSlider from "@/components/home/HomeBannerSlider";
 import ContinueLearningCard from "@/components/home/ContinueLearningCard";
@@ -13,6 +13,17 @@ import { isSuperAdminEmail } from "@/lib/adminAccess";
 import type { HomeworkRow } from "@/lib/homework";
 import { isDeadlinePassed } from "@/lib/homework";
 import type { NoticeRow } from "@/lib/notices";
+import { toast } from "@/components/ui/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -20,6 +31,12 @@ const HomePage = () => {
   const [pendingHw, setPendingHw] = useState<HomeworkRow[]>([]);
   const [boardLoading, setBoardLoading] = useState(true);
   const [isAdminUser, setIsAdminUser] = useState(false);
+
+  // Edit states
+  const [editingNotice, setEditingNotice] = useState<NoticeRow | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const loadBoard = useCallback(async () => {
     if (!supabase || !isSupabaseConfigured) {
@@ -62,6 +79,68 @@ const HomePage = () => {
     void loadBoard();
   }, [loadBoard]);
 
+  const handleDeleteNotice = async (id: string) => {
+    if (!supabase) return;
+    const ok = window.confirm("Are you sure you want to delete this notice?");
+    if (!ok) return;
+
+    try {
+      const { error } = await supabase.from("notices").delete().eq("id", id);
+      if (error) throw error;
+      setNotices((prev) => prev.filter((n) => n.id !== id));
+      toast({ title: "Deleted", description: "Notice removed successfully." });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Delete failed",
+        description: err.message || "Could not delete notice.",
+      });
+    }
+  };
+
+  const handleEditClick = (notice: NoticeRow) => {
+    setEditingNotice(notice);
+    setEditTitle(notice.title);
+    setEditBody(notice.body);
+  };
+
+  const handleUpdateNotice = async () => {
+    if (!supabase || !editingNotice) return;
+    if (!editTitle.trim() || !editBody.trim()) {
+      toast({ variant: "destructive", title: "Error", description: "Title and body are required." });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("notices")
+        .update({
+          title: editTitle.trim(),
+          body: editBody.trim(),
+        })
+        .eq("id", editingNotice.id);
+
+      if (error) throw error;
+
+      setNotices((prev) =>
+        prev.map((n) =>
+          n.id === editingNotice.id ? { ...n, title: editTitle.trim(), body: editBody.trim() } : n,
+        ),
+      );
+      setEditingNotice(null);
+      toast({ title: "Updated", description: "Notice updated successfully." });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: err.message || "Could not update notice.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen pb-20 bg-background">
       <AppHeader />
@@ -82,15 +161,37 @@ const HomePage = () => {
             )}
             {!boardLoading &&
               notices.map((n) => (
-                <div key={n.id} className="rounded-xl border border-border bg-card/80 p-3 shadow-sm">
-                  <p className="text-sm font-semibold text-foreground">{n.title}</p>
-                  <p className="text-[10px] text-primary font-medium mt-0.5">
-                    {n.audience_type === "public"
-                      ? "Everyone"
-                      : n.audience_type === "batch"
-                        ? `Batch: ${n.batch_code ?? ""}`
-                        : `Selected rolls`}
-                  </p>
+                <div key={n.id} className="rounded-xl border border-border bg-card/80 p-3 shadow-sm group relative">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground">{n.title}</p>
+                      <p className="text-[10px] text-primary font-medium mt-0.5">
+                        {n.audience_type === "public"
+                          ? "Everyone"
+                          : n.audience_type === "batch"
+                            ? `Batch: ${n.batch_code ?? ""}`
+                            : `Selected rolls`}
+                      </p>
+                    </div>
+                    {isAdminUser && (
+                      <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => handleEditClick(n)}
+                          className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteNotice(n.id)}
+                          className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-2 whitespace-pre-wrap">{n.body}</p>
                   <p className="text-[10px] text-muted-foreground mt-2">
                     {format(new Date(n.created_at), "dd MMM yyyy, h:mm a")}
@@ -108,6 +209,52 @@ const HomePage = () => {
             )}
           </div>
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={!!editingNotice} onOpenChange={(open) => !open && setEditingNotice(null)}>
+          <DialogContent className="max-w-md rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Notice</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Title</label>
+                <Input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Notice title"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Message</label>
+                <Textarea
+                  value={editBody}
+                  onChange={(e) => setEditBody(e.target.value)}
+                  placeholder="Type your message here..."
+                  className="min-h-[120px]"
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex-row gap-2 sm:justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 sm:flex-none"
+                onClick={() => setEditingNotice(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 sm:flex-none"
+                onClick={handleUpdateNotice}
+                disabled={saving}
+              >
+                {saving ? "Saving..." : "Update Notice"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {!isAdminUser && (
           <div className="rounded-2xl border border-primary/20 bg-card p-4 shadow-sm">
