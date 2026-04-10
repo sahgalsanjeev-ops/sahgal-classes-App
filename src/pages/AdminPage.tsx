@@ -12,7 +12,6 @@ import {
   BarChart3,
   Pencil,
   Check,
-  ShieldAlert,
   X,
   Calendar as CalendarIcon,
 } from "lucide-react";
@@ -246,55 +245,6 @@ const AdminPage = () => {
     toast({ title: "Batch created", description: "New batch added successfully." });
   };
 
-  const testSupabaseInsert = async () => {
-    console.log("Starting testSupabaseInsert...");
-    try {
-      // Use the actual columns I've defined in saveBatchSupabase
-      const row = {
-        id: makeId(),
-        batch_name: "Test Batch " + new Date().toLocaleTimeString(),
-        batch_code: "TEST-" + Math.floor(Math.random() * 1000),
-        course_name: "Test Course",
-        timing: "10 AM",
-        teacher_name: "Test Teacher",
-        videos: [],
-        homework: [],
-        study_material_pdfs: [],
-        test_papers: [],
-        students: [],
-        attendance_records: [],
-        homework_records: [],
-        test_marks_records: [],
-        created_at: new Date().toISOString()
-      };
-
-      const { data, error } = await supabase
-        .from('batches')
-        .insert(row)
-        .select();
-
-      if (error) {
-        console.error("Supabase Insert Error:", error);
-        toast({
-          variant: "destructive",
-          title: "Supabase Error",
-          description: error.message
-        });
-      } else {
-        console.log("Supabase Insert Success:", data);
-        toast({
-          title: "Supabase Success",
-          description: "Test batch inserted successfully!"
-        });
-        // Refresh batches
-        const sb = await fetchBatchesSupabase();
-        setBatches(sb);
-      }
-    } catch (err) {
-      console.error("Catch Error:", err);
-    }
-  };
-
   const handleDeleteBatch = async (id: string) => {
     const ok = window.confirm("Are you sure you want to delete this batch? All records for this batch will be lost.");
     if (!ok) return;
@@ -502,7 +452,6 @@ const AdminPage = () => {
             teacherName={teacherName}
             setTeacherName={setTeacherName}
             handleCreateBatch={handleCreateBatch}
-            testSupabaseInsert={testSupabaseInsert}
             handleDeleteBatch={handleDeleteBatch}
             addResource={addResource}
             updateSelectedBatch={updateSelectedBatch}
@@ -545,7 +494,6 @@ type BatchManagerProps = {
   teacherName: string;
   setTeacherName: (v: string) => void;
   handleCreateBatch: () => void;
-  testSupabaseInsert: () => void;
   handleDeleteBatch: (id: string) => void;
   addResource: (type: "videos" | "homework" | "studyMaterialPdfs" | "testPapers", titleValue: string, linkValue: string) => void;
   updateSelectedBatch: (updater: (batch: Batch) => Batch) => void;
@@ -567,7 +515,6 @@ const BatchManager = ({
   teacherName,
   setTeacherName,
   handleCreateBatch,
-  testSupabaseInsert,
   handleDeleteBatch,
   addResource,
   updateSelectedBatch,
@@ -832,10 +779,6 @@ const BatchManager = ({
         <Button onClick={handleCreateBatch} className="w-full gap-2">
           <Plus size={16} />
           Create Batch
-        </Button>
-        <Button onClick={testSupabaseInsert} variant="outline" className="w-full gap-2 text-xs border-dashed">
-          <ShieldAlert size={14} />
-          Test Supabase Insert (Debug)
         </Button>
       </div>
 
