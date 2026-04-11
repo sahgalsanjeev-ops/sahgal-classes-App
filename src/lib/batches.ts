@@ -110,6 +110,40 @@ export const fetchBatchesSupabase = async (): Promise<Batch[]> => {
     return [];
   }
 
+  // Fetch all enrollments and profiles separately to avoid relation errors
+  const [{ data: enrollments, error: enrollError }, { data: profiles, error: profileError }] = await Promise.all([
+    supabase.from("batch_enrollments").select("batch_id, student_email"),
+    supabase.from("profiles").select("id, full_name, mobile, roll_no, email")
+  ]);
+
+  if (enrollError) console.error("fetchEnrollments error:", enrollError);
+  if (profileError) console.error("fetchProfiles error:", profileError);
+
+  console.log("Total Enrollments:", enrollments?.length || 0);
+  console.log("Total Profiles:", profiles?.length || 0);
+
+  const enrollmentMap: Record<string, StudentProfile[]> = {};
+  
+  if (enrollments && profiles) {
+    const profileMap = new Map(profiles.map(p => [p.email?.toLowerCase() || "", p]));
+    
+    enrollments.forEach((e: any) => {
+      if (!enrollmentMap[e.batch_id]) enrollmentMap[e.batch_id] = [];
+      const emailKey = e.student_email?.toLowerCase();
+      const profile = profileMap.get(emailKey);
+      if (profile) {
+        enrollmentMap[e.batch_id].push({
+          id: profile.id,
+          name: profile.full_name,
+          email: e.student_email,
+          rollNo: profile.roll_no || "",
+        });
+      } else {
+        console.warn(`No profile found for enrolled email: ${e.student_email}`);
+      }
+    });
+  }
+
   return (data ?? []).map((row: any) => ({
     id: row.id,
     batchName: row.batch_name,
@@ -121,12 +155,40 @@ export const fetchBatchesSupabase = async (): Promise<Batch[]> => {
     homework: row.homework || [],
     studyMaterialPdfs: row.study_material_pdfs || [],
     testPapers: row.test_papers || [],
-    students: row.students || [],
+    students: enrollmentMap[row.id] || [],
     attendanceRecords: row.attendance_records || [],
     homeworkRecords: row.homework_records || [],
     testMarksRecords: row.test_marks_records || [],
     createdAt: row.created_at,
   }));
+};
+
+/** Add student to a batch (enrollment) */
+export const enrollStudentInBatch = async (batchId: string, studentEmail: string): Promise<boolean> => {
+  if (!isSupabaseConfigured || !supabase) return false;
+  const { error } = await supabase
+    .from("batch_enrollments")
+    .upsert({ batch_id: batchId, student_email: studentEmail.toLowerCase() }, { onConflict: "batch_id,student_email" });
+  if (error) {
+    console.error("enrollStudentInBatch error:", error);
+    throw error; // Throw so caller can handle
+  }
+  return true;
+};
+
+/** Remove student from a batch (unenroll) */
+export const unenrollStudentFromBatch = async (batchId: string, studentEmail: string): Promise<boolean> => {
+  if (!isSupabaseConfigured || !supabase) return false;
+  const { error } = await supabase
+    .from("batch_enrollments")
+    .delete()
+    .eq("batch_id", batchId)
+    .eq("student_email", studentEmail.toLowerCase());
+  if (error) {
+    console.error("unenrollStudentFromBatch error:", error);
+    throw error; // Throw so caller can handle
+  }
+  return true;
 };
 
 /** Save or update a batch in Supabase */

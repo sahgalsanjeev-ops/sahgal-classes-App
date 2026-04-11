@@ -16,15 +16,26 @@ import {
   Calendar as CalendarIcon,
   Loader2,
   Trash2,
+  Search,
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import {
   Batch,
   computeTestPercentage,
   deleteBatchSupabase,
+  enrollStudentInBatch,
   fetchBatchesSupabase,
   getBatches,
   HomeworkStatus,
@@ -32,6 +43,7 @@ import {
   saveBatches,
   saveBatchSupabase,
   StudentProfile,
+  unenrollStudentFromBatch,
 } from "@/lib/batches";
 import { cn } from "@/lib/utils";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -269,6 +281,11 @@ const AdminPage = () => {
     await persistBatch(updated);
   };
 
+  const refreshBatches = async () => {
+    const data = await fetchBatchesSupabase();
+    setBatches(data);
+  };
+
   const addResource = async (type: "videos" | "homework" | "studyMaterialPdfs" | "testPapers", titleValue: string, linkValue: string) => {
     if (!selectedBatch) return;
     if (!titleValue.trim()) return;
@@ -458,6 +475,7 @@ const AdminPage = () => {
             handleDeleteBatch={handleDeleteBatch}
             addResource={addResource}
             updateSelectedBatch={updateSelectedBatch}
+            refreshBatches={refreshBatches}
           />
         ) : activeTab === "onlineTests" ? (
           <AdminOnlineTestSection />
@@ -476,6 +494,177 @@ const AdminPage = () => {
         )}
       </div>
     </div>
+  );
+};
+
+interface StudentEnrollmentModalProps {
+  batchId: string;
+  enrolledEmails: string[];
+  onSuccess: () => void;
+}
+
+const StudentEnrollmentModal = ({ batchId, enrolledEmails, onSuccess }: StudentEnrollmentModalProps) => {
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [batchesList, setBatchesList] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [classFilter, setClassFilter] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
+  const [enrolling, setEnrolling] = useState(false);
+  const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      console.log("Fetching student data for modal...");
+      
+      try {
+        // Fetch profiles, enrollments, and batches separately to avoid relation errors
+        const [
+          { data: profilesData, error: profileError },
+          { data: enrollmentsData, error: enrollError },
+          { data: batchesData, error: batchError }
+        ] = await Promise.all([
+          supabase!.from("profiles").select("id, full_name, mobile, class_selection, email").order("full_name"),
+          supabase!.from("batch_enrollments").select("batch_id, student_email"),
+          supabase!.from("batches").select("id, batch_name")
+        ]);
+
+        if (profileError) throw profileError;
+        if (enrollError) console.error("Enrollment fetch error:", enrollError);
+        if (batchError) console.error("Batch fetch error:", batchError);
+
+        console.log("Profiles fetched:", profilesData?.length || 0);
+        console.log("Enrollments fetched:", enrollmentsData?.length || 0);
+
+        setProfiles(profilesData || []);
+        setEnrollments(enrollmentsData || []);
+        setBatchesList(batchesData || []);
+      } catch (err) {
+        console.error("Error loading data for enrollment modal:", err);
+        toast({ variant: "destructive", title: "Error", description: "Failed to load students list." });
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadData();
+  }, []);
+
+  const filtered = profiles.filter(p => {
+    const nameMatch = p.full_name?.toLowerCase().includes(search.toLowerCase());
+    const mobileMatch = p.mobile?.includes(search);
+    const searchMatch = !search || nameMatch || mobileMatch;
+    
+    // Exact match for class_selection column values
+    const classMatch = classFilter === "all" || p.class_selection === classFilter;
+    
+    return searchMatch && classMatch;
+  });
+
+  const handleEnroll = async () => {
+    if (selectedEmails.length === 0) return;
+    setEnrolling(true);
+    try {
+      for (const email of selectedEmails) {
+        await enrollStudentInBatch(batchId, email);
+      }
+      toast({ title: "Enrolled", description: `${selectedEmails.length} students added to batch.` });
+      onSuccess();
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Could not enroll students." });
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  if (loading) return <div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+
+  return (
+    <>
+      <div className="p-6 space-y-4 flex-1 overflow-hidden flex flex-col">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+            <Input 
+              placeholder="Search Name or Mobile..." 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-10"
+            />
+          </div>
+          <select
+            value={classFilter}
+            onChange={(e) => setClassFilter(e.target.value)}
+            className="rounded-md border border-input bg-background px-3 h-10 text-sm font-semibold min-w-[100px]"
+          >
+            <option value="all">All Classes</option>
+            <option value="11th">11th</option>
+            <option value="12th">12th</option>
+            <option value="12th_pass">12th Pass</option>
+          </select>
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+          {filtered.map(p => {
+            const isAlreadyEnrolled = enrolledEmails.includes(p.email?.toLowerCase());
+            const isSelected = selectedEmails.includes(p.email);
+            
+            // Match enrollments client-side
+            const studentEnrollments = enrollments.filter(e => e.student_email?.toLowerCase() === p.email?.toLowerCase());
+            const otherBatches = studentEnrollments
+              .filter(e => e.batch_id !== batchId)
+              .map(e => {
+                const b = batchesList.find(batch => batch.id === e.batch_id);
+                return b?.batch_name;
+              })
+              .filter(Boolean);
+
+            return (
+              <div 
+                key={p.id} 
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-xl border-2 transition-all",
+                  isAlreadyEnrolled ? "opacity-50 bg-muted border-transparent" : 
+                  isSelected ? "border-primary bg-primary/5 shadow-sm" : "border-border bg-card hover:border-primary/20"
+                )}
+              >
+                {!isAlreadyEnrolled && (
+                  <Checkbox 
+                    checked={isSelected}
+                    onCheckedChange={(checked) => {
+                      if (checked) setSelectedEmails(prev => [...prev, p.email]);
+                      else setSelectedEmails(prev => prev.filter(e => e !== p.email));
+                    }}
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-foreground">{p.full_name || "Unknown"}</p>
+                  <p className="text-[11px] text-muted-foreground font-medium">{p.mobile || "No Mobile"} • {p.class_selection}</p>
+                  {otherBatches.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {otherBatches.map((name: string) => (
+                        <span key={name} className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[9px] font-bold">{name}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {isAlreadyEnrolled && <span className="text-[10px] font-black text-primary uppercase bg-primary/10 px-2 py-1 rounded">Enrolled</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <DialogFooter className="p-6 border-t bg-muted/20">
+        <Button 
+          className="w-full h-12 font-bold text-base" 
+          disabled={selectedEmails.length === 0 || enrolling}
+          onClick={handleEnroll}
+        >
+          {enrolling ? <Loader2 className="animate-spin mr-2" /> : <Plus size={18} className="mr-2" />}
+          Enroll {selectedEmails.length} Students
+        </Button>
+      </DialogFooter>
+    </>
   );
 };
 
@@ -500,6 +689,7 @@ type BatchManagerProps = {
   handleDeleteBatch: (id: string) => void;
   addResource: (type: "videos" | "homework" | "studyMaterialPdfs" | "testPapers", titleValue: string, linkValue: string) => void;
   updateSelectedBatch: (updater: (batch: Batch) => Batch) => void;
+  refreshBatches: () => void;
 };
 
 const BatchManager = ({
@@ -521,6 +711,7 @@ const BatchManager = ({
   handleDeleteBatch,
   addResource,
   updateSelectedBatch,
+  refreshBatches,
 }: BatchManagerProps) => {
   const [attendanceSessionDate, setAttendanceSessionDate] = useState(() => new Date());
   const attendanceDateKey = useMemo(() => format(attendanceSessionDate, "dd-MM-yyyy"), [attendanceSessionDate]);
@@ -1030,121 +1221,105 @@ const BatchManager = ({
                   Students ({selectedBatch.students.length})
                 </span>
               </AccordionTrigger>
-              <AccordionContent className="space-y-3 pb-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <Input value={studentRollNo} onChange={(e) => setStudentRollNo(e.target.value)} placeholder="Roll no. (Optional)" />
-                  <Input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Student name" />
-                  <Input value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} placeholder="Email (Unique Identity)" />
+              <AccordionContent className="space-y-4 pb-4 px-1">
+                <div className="flex flex-col gap-3 bg-muted/30 p-4 rounded-xl border-2 border-dashed border-primary/20">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="default" className="flex-1 gap-2 h-11 font-bold shadow-lg shadow-primary/10">
+                          <Users size={18} />
+                          Select from Registered Students
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[500px] h-[80vh] flex flex-col p-0">
+                        <DialogHeader className="p-6 pb-2">
+                          <DialogTitle className="flex items-center gap-2 text-xl">
+                            <Users className="text-primary" />
+                            Registered Students
+                          </DialogTitle>
+                        </DialogHeader>
+                        <StudentEnrollmentModal 
+                          batchId={selectedBatch.id}
+                          enrolledEmails={selectedBatch.students.map(s => s.email.toLowerCase())}
+                          onSuccess={() => {
+                            void refreshBatches();
+                          }}
+                        />
+                      </DialogContent>
+                    </Dialog>
+
+                    <div className="flex items-center justify-center text-[10px] font-black text-muted-foreground uppercase px-2">OR</div>
+
+                    <div className="flex-1 space-y-2">
+                      <div className="flex gap-2">
+                        <Input 
+                          value={studentEmail} 
+                          onChange={(e) => setStudentEmail(e.target.value)} 
+                          placeholder="Enter Student Email" 
+                          className="h-11 font-semibold border-2"
+                        />
+                        <Button 
+                          onClick={async () => {
+                            if (!studentEmail.trim()) return;
+                            const email = studentEmail.trim().toLowerCase();
+                            const exists = selectedBatch.students.some(s => s.email.toLowerCase() === email);
+                            if (exists) {
+                              toast({ variant: "destructive", title: "Already added", description: "Student is already in this batch." });
+                              return;
+                            }
+                            const ok = await enrollStudentInBatch(selectedBatch.id, email);
+                            if (ok) {
+                              toast({ title: "Enrolled", description: "Student added successfully." });
+                              setStudentEmail("");
+                              void refreshBatches();
+                            }
+                          }}
+                          className="h-11 px-6 font-bold"
+                        >
+                          Add Manually
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Email is the primary identity used for login and batch linking. Roll number is stored for reference only.
-                </p>
-                <Button
-                  onClick={() => {
-                    if (!studentName.trim() || !studentEmail.trim() || !studentRollNo.trim()) {
-                      toast({
-                        variant: "destructive",
-                        title: "Missing fields",
-                        description: "Enter roll no., name, and email.",
-                      });
-                      return;
-                    }
-                    const roll = studentRollNo.trim();
-                    const email = studentEmail.trim().toLowerCase();
-                    const duplicateEmail = selectedBatch.students.some(
-                      (s) => s.email.trim().toLowerCase() === email.toLowerCase(),
-                    );
-                    if (duplicateEmail) {
-                      toast({
-                        variant: "destructive",
-                        title: "Duplicate email",
-                        description: "This email is already used as an identity for another student in this batch.",
-                      });
-                      return;
-                    }
-                    updateSelectedBatch((batch) => ({
-                      ...batch,
-                      students: [
-                        ...batch.students,
-                        {
-                          id: makeId(),
-                          rollNo: roll,
-                          name: studentName.trim(),
-                          email,
-                        },
-                      ],
-                    }));
-                    setStudentName("");
-                    setStudentRollNo("");
-                    setStudentEmail("");
-                  }}
-                  className="w-full"
-                >
-                  Add Student
-                </Button>
-                {selectedBatch.students.length > 0 && (
-                  <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3 max-h-72 overflow-y-auto">
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase">Enrolled</p>
+
+                {selectedBatch.students.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest ml-1">Enrolled Students</p>
                     {selectedBatch.students.map((s) => (
-                      <div key={s.id} className="text-xs border-b border-border/60 pb-3 last:border-0 last:pb-0">
-                        {editingStudentId === s.id ? (
-                          <div className="space-y-2">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                              <Input value={editRoll} onChange={(e) => setEditRoll(e.target.value)} placeholder="Roll no. (Ref)" />
-                              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
-                              <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="Email (Unique)" />
-                            </div>
-                            <div className="flex gap-2">
-                              <Button type="button" size="sm" className="flex-1 gap-1" onClick={saveEditedStudent}>
-                                <Check size={14} /> Save
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="flex-1 gap-1"
-                                onClick={() => setEditingStudentId(null)}
-                              >
-                                <X size={14} /> Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <span className="font-semibold text-primary">Roll {s.rollNo}</span>
-                              <span className="text-foreground"> — {s.name}</span>
-                              <p className="text-[11px] text-muted-foreground mt-0.5 break-all">{s.email}</p>
-                            </div>
-                            <div className="flex gap-2 shrink-0">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="gap-1 h-8"
-                                onClick={() => {
-                                  setEditingStudentId(s.id);
-                                  setEditRoll(s.rollNo);
-                                  setEditName(s.name);
-                                  setEditEmail(s.email);
-                                }}
-                              >
-                                <Pencil size={12} /> Edit
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="gap-1 h-8 text-destructive hover:bg-destructive/10"
-                                onClick={() => removeStudentFromBatch(s.id, s.name)}
-                              >
-                                <X size={12} /> Remove
-                              </Button>
-                            </div>
-                          </div>
-                        )}
+                      <div
+                        key={s.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border-2 border-border bg-card p-2 group transition-all hover:border-primary/20"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-foreground">
+                            {s.name} <span className="text-primary font-medium ml-1">({s.rollNo || "No Roll"})</span>
+                          </p>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive rounded-lg"
+                            onClick={async () => {
+                              if (!window.confirm(`Remove ${s.name} from this batch?`)) return;
+                              const ok = await unenrollStudentFromBatch(selectedBatch.id, s.email);
+                              if (ok) {
+                                toast({ title: "Removed", description: "Student removed from batch." });
+                                void refreshBatches();
+                              }
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
                       </div>
                     ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center border-2 border-dashed rounded-xl">
+                    <p className="text-sm text-muted-foreground">No students enrolled yet.</p>
                   </div>
                 )}
               </AccordionContent>
