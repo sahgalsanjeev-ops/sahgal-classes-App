@@ -110,10 +110,10 @@ export const fetchBatchesSupabase = async (): Promise<Batch[]> => {
     return [];
   }
 
-  // Fetch all enrollments and profiles separately to avoid relation errors
+  // Fetch all enrollments and active profiles separately to avoid relation errors
   const [{ data: enrollments, error: enrollError }, { data: profiles, error: profileError }] = await Promise.all([
     supabase.from("batch_enrollments").select("batch_id, student_email"),
-    supabase.from("profiles").select("id, full_name, mobile, roll_no, email")
+    supabase.from("profiles").select("id, full_name, mobile, roll_no, email").eq("status", "active")
   ]);
 
   if (enrollError) console.error("fetchEnrollments error:", enrollError);

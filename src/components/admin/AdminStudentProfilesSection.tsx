@@ -52,7 +52,11 @@ const AdminStudentProfilesSection = ({ refreshBatches }: { refreshBatches?: () =
 
   const load = async () => {
     if (!isSupabaseConfigured || !supabase) return;
-    const { data, error } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("status", "active")
+      .order("created_at", { ascending: false });
     if (error) {
       toast({ variant: "destructive", title: "Could not load profiles", description: error.message });
       setRows([]);
@@ -183,23 +187,36 @@ const AdminStudentProfilesSection = ({ refreshBatches }: { refreshBatches?: () =
 
   const handleRemove = async (r: ProfileRow) => {
     const ok = window.confirm(
-      `Remove student "${r.full_name}" permanently? Their login and profile will be deleted. This cannot be undone.`,
+      `Archive student "${r.full_name}"? They will be removed from all active lists.`,
     );
     if (!ok) return;
 
-    const token = await getAccessToken();
-    if (!token) {
-      toast({ variant: "destructive", title: "Not signed in", description: "Please sign in again." });
-      return;
-    }
     setActionId(r.id);
     try {
-      await postDeleteStudent(token, r.id);
-      toast({ title: "Student removed", description: `${r.full_name} was deleted.` });
-      await load();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Remove failed";
-      toast({ variant: "destructive", title: "Could not remove student", description: msg });
+      // Soft Delete: update status to 'archived'
+      const { error } = await supabase
+        .from("profiles")
+        .update({ status: "archived" })
+        .eq("id", r.id);
+
+      if (error) throw error;
+
+      toast({ title: "Student archived! 📦", description: `${r.full_name} moved to archive.` });
+      
+      // UI update: filter out the archived row immediately
+      setRows(prev => prev.filter(row => row.id !== r.id));
+      
+      // Refresh global batches state
+      if (refreshBatches) {
+        await refreshBatches();
+      }
+    } catch (e: any) {
+      const msg = e.message || "Archive failed";
+      toast({ 
+        variant: "destructive", 
+        title: "Action failed", 
+        description: msg 
+      });
     } finally {
       setActionId(null);
     }

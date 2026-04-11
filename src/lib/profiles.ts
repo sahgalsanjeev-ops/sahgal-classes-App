@@ -31,13 +31,20 @@ export type ProfileRow = {
   onboarding_completed: boolean;
   /** Admin-set: active | inactive | blocked (see supabase/student_account_status.sql). */
   account_status?: "active" | "inactive" | "blocked" | null;
+  /** Student soft delete status: active | archived. */
+  status?: "active" | "archived" | null;
   created_at?: string;
   updated_at?: string;
 };
 
 export async function fetchProfile(userId: string | undefined): Promise<ProfileRow | null> {
   if (!isSupabaseConfigured || !supabase || !userId) return null;
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .eq("status", "active")
+    .maybeSingle();
   if (error) {
     console.warn("fetchProfile", error.message);
     return null;

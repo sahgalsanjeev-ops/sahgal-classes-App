@@ -519,13 +519,13 @@ const StudentEnrollmentModal = ({ batchId, enrolledEmails, onSuccess }: StudentE
       console.log("Fetching student data for modal...");
       
       try {
-        // Fetch profiles, enrollments, and batches separately to avoid relation errors
+        // Fetch active profiles, enrollments, and batches separately to avoid relation errors
         const [
           { data: profilesData, error: profileError },
           { data: enrollmentsData, error: enrollError },
           { data: batchesData, error: batchError }
         ] = await Promise.all([
-          supabase!.from("profiles").select("id, full_name, mobile, class_selection, email").order("full_name"),
+          supabase!.from("profiles").select("id, full_name, mobile, class_selection, email").eq("status", "active").order("full_name"),
           supabase!.from("batch_enrollments").select("batch_id, student_email"),
           supabase!.from("batches").select("id, batch_name")
         ]);

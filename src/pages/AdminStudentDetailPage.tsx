@@ -53,7 +53,12 @@ const AdminStudentDetailPage = () => {
       setLoading(false);
       return;
     }
-    const { data: p, error } = await supabase.from("profiles").select("*").eq("id", studentId).maybeSingle();
+    const { data: p, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", studentId)
+      .eq("status", "active")
+      .maybeSingle();
     if (error || !p) {
       toast({ variant: "destructive", title: "Not found", description: error?.message ?? "No profile for this id." });
       navigate("/admin", { replace: true });
