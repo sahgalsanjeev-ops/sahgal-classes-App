@@ -23,7 +23,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const { error } = await admin.from("profiles").update({ account_status: status }).eq("id", studentId);
+  const { error } = await admin.from("profiles").update({ 
+    account_status: status,
+    status: status === "blocked" ? "blocked" : "active"
+  }).eq("id", studentId);
 
   if (error) {
     res.status(400).json({ error: error.message });

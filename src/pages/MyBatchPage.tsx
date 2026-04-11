@@ -27,6 +27,7 @@ const MyBatchPage = () => {
             .from("profiles")
             .select("*, batches(*)")
             .eq("id", user.id)
+            .eq("status", "active")
             .maybeSingle();
           setProfile(p);
         }

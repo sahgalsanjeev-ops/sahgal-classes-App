@@ -55,7 +55,7 @@ const AdminStudentProfilesSection = ({ refreshBatches }: { refreshBatches?: () =
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
-      .eq("status", "active")
+      .neq("status", "archived")
       .order("created_at", { ascending: false });
     if (error) {
       toast({ variant: "destructive", title: "Could not load profiles", description: error.message });
@@ -167,14 +167,20 @@ const AdminStudentProfilesSection = ({ refreshBatches }: { refreshBatches?: () =
   };
 
   const handleStatus = async (studentId: string, status: StudentAccountStatus) => {
-    const token = await getAccessToken();
-    if (!token) {
-      toast({ variant: "destructive", title: "Not signed in", description: "Please sign in again." });
-      return;
-    }
+    if (!supabase) return;
     setActionId(studentId);
     try {
-      await postUpdateStudentStatus(token, studentId, status);
+      // Direct Supabase Update (avoiding 404 API route)
+      const { error } = await supabase
+        .from("profiles")
+        .update({ 
+          account_status: status,
+          status: status === "blocked" ? "blocked" : "active"
+        })
+        .eq("id", studentId);
+
+      if (error) throw error;
+
       toast({ title: "Status updated", description: `Student is now ${status}.` });
       await load();
     } catch (e) {

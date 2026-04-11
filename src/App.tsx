@@ -90,7 +90,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <div className="max-w-lg mx-auto bg-background min-h-screen relative shadow-xl">
           <Routes>
             <Route path="/login" element={<LoginPage />} />

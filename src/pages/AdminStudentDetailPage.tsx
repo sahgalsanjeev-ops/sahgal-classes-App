@@ -57,7 +57,7 @@ const AdminStudentDetailPage = () => {
       .from("profiles")
       .select("*")
       .eq("id", studentId)
-      .eq("status", "active")
+      .neq("status", "archived")
       .maybeSingle();
     if (error || !p) {
       toast({ variant: "destructive", title: "Not found", description: error?.message ?? "No profile for this id." });
