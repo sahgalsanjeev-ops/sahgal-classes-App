@@ -489,7 +489,7 @@ const AdminPage = () => {
           </div>
         ) : (
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <AdminStudentProfilesSection />
+            <AdminStudentProfilesSection refreshBatches={refreshBatches} />
           </div>
         )}
       </div>

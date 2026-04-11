@@ -1,14 +1,23 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Pencil, Save } from "lucide-react";
+import { Pencil, Save, UserPlus, Loader2, Sparkles, User, Mail, Phone, GraduationCap, School } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/components/ui/use-toast";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import type { ProfileRow } from "@/lib/profiles";
+import type { ProfileRow, ClassSelection } from "@/lib/profiles";
 import { postDeleteStudent, postUpdateStudentStatus, type StudentAccountStatus } from "@/lib/studentAdminApi";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { enrollStudentInBatch } from "@/lib/batches";
 
 const statusLabel = (s: ProfileRow["account_status"]) => {
   const v = s ?? "active";
@@ -20,14 +29,26 @@ const statusLabel = (s: ProfileRow["account_status"]) => {
 const actionBtnClass =
   "rounded-md px-2 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors disabled:opacity-50 disabled:pointer-events-none";
 
-const AdminStudentProfilesSection = () => {
+const AdminStudentProfilesSection = ({ refreshBatches }: { refreshBatches?: () => void }) => {
   const navigate = useNavigate();
   const [rows, setRows] = useState<ProfileRow[]>([]);
+  const [batches, setBatches] = useState<{ id: string; batch_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState<string | null>(null);
   const [rollDraft, setRollDraft] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
+
+  // New Student Registration State
+  const [isRegModalOpen, setIsRegModalOpen] = useState(false);
+  const [regLoading, setRegLoading] = useState(false);
+  const [regForm, setRegForm] = useState({
+    fullName: "",
+    email: "",
+    mobile: "",
+    classSelection: "11th" as ClassSelection,
+    batchId: "none",
+  });
 
   const load = async () => {
     if (!isSupabaseConfigured || !supabase) return;
@@ -38,12 +59,79 @@ const AdminStudentProfilesSection = () => {
     } else {
       setRows((data ?? []) as ProfileRow[]);
     }
+
+    // Load batches for dropdown
+    const { data: batchData } = await supabase.from("batches").select("id, batch_name").order("batch_name");
+    setBatches(batchData || []);
+
     setLoading(false);
   };
 
   useEffect(() => {
     void load();
   }, []);
+
+  const handleRegisterStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+
+    if (!regForm.fullName.trim() || !regForm.email.trim() || !regForm.mobile.trim()) {
+      toast({ variant: "destructive", title: "Required", description: "Name, Email and Mobile are required." });
+      return;
+    }
+
+    setRegLoading(true);
+    try {
+      const email = regForm.email.trim().toLowerCase();
+
+      // 1. Conflict Check: Check if student already exists
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (existing) {
+        throw new Error("Student already exists!");
+      }
+
+      // 2. Direct Supabase Insert (Supabase handles ID automatically)
+      const { error: regError } = await supabase.from("profiles").insert({
+        email: email,
+        full_name: regForm.fullName.trim(),
+        mobile: regForm.mobile.trim(),
+        class_selection: regForm.classSelection,
+        onboarding_completed: true,
+      });
+
+      if (regError) throw regError;
+
+      // 3. Batch auto-assignment if provided
+      let assignedToBatch = false;
+      if (regForm.batchId !== "none") {
+        await enrollStudentInBatch(regForm.batchId, email);
+        assignedToBatch = true;
+      }
+
+      const successMsg = assignedToBatch 
+        ? "Student Registered and Assigned to Batch Successfully!" 
+        : `${regForm.fullName} registered successfully.`;
+
+      toast({ title: "Success! 🚀", description: successMsg });
+      setIsRegModalOpen(false);
+      setRegForm({ fullName: "", email: "", mobile: "", classSelection: "11th", batchId: "none" });
+      
+      // Refresh both profiles list and global batches state
+      await load();
+      if (refreshBatches) {
+        await refreshBatches();
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Registration failed", description: err.message });
+    } finally {
+      setRegLoading(false);
+    }
+  };
 
   const getAccessToken = async () => {
     if (!supabase) return null;
@@ -122,10 +210,127 @@ const AdminStudentProfilesSection = () => {
   }
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Tap a name for full profile. Actions call secured APIs; add <code className="rounded bg-muted px-1">SUPABASE_SERVICE_ROLE_KEY</code> on Vercel.
-      </p>
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20 p-4 rounded-2xl border-2 border-dashed border-primary/20">
+        <div>
+          <h3 className="text-sm font-bold text-foreground">Direct Registration</h3>
+          <p className="text-[11px] text-muted-foreground">Add students manually to the system.</p>
+        </div>
+        <Dialog open={isRegModalOpen} onOpenChange={setIsRegModalOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 h-11 font-bold shadow-lg shadow-primary/10">
+              <UserPlus size={18} />
+              Register New Student
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden">
+            <form onSubmit={handleRegisterStudent}>
+              <DialogHeader className="p-6 pb-2">
+                <DialogTitle className="flex items-center gap-2 text-xl font-black">
+                  <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                    <Sparkles size={20} />
+                  </div>
+                  Student Registration
+                </DialogTitle>
+              </DialogHeader>
+              <div className="p-6 pt-2 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-2 ml-1">
+                    <User size={12} className="text-primary" />
+                    Full Name
+                  </label>
+                  <Input 
+                    value={regForm.fullName} 
+                    onChange={(e) => setRegForm(prev => ({ ...prev, fullName: e.target.value }))}
+                    placeholder="e.g. Rahul Kumar" 
+                    className="h-11 font-semibold border-2 rounded-xl"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-2 ml-1">
+                    <Mail size={12} className="text-primary" />
+                    Email ID
+                  </label>
+                  <Input 
+                    type="email"
+                    value={regForm.email} 
+                    onChange={(e) => setRegForm(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="rahul@example.com" 
+                    className="h-11 font-semibold border-2 rounded-xl"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-2 ml-1">
+                    <Phone size={12} className="text-primary" />
+                    Mobile Number
+                  </label>
+                  <Input 
+                    value={regForm.mobile} 
+                    onChange={(e) => setRegForm(prev => ({ ...prev, mobile: e.target.value }))}
+                    placeholder="10-digit mobile" 
+                    className="h-11 font-semibold border-2 rounded-xl"
+                    inputMode="tel"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-2 ml-1">
+                      <GraduationCap size={12} className="text-primary" />
+                      Class
+                    </label>
+                    <select
+                      value={regForm.classSelection}
+                      onChange={(e) => setRegForm(prev => ({ ...prev, classSelection: e.target.value as ClassSelection }))}
+                      className="w-full h-11 rounded-xl border-2 border-input bg-background px-3 text-sm font-bold outline-none focus:border-primary transition-all"
+                    >
+                      <option value="11th">11th Class</option>
+                      <option value="12th">12th Class</option>
+                      <option value="12th_pass">12th Pass</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-2 ml-1">
+                      <School size={12} className="text-primary" />
+                      Batch (Opt)
+                    </label>
+                    <select
+                      value={regForm.batchId}
+                      onChange={(e) => setRegForm(prev => ({ ...prev, batchId: e.target.value }))}
+                      className="w-full h-11 rounded-xl border-2 border-input bg-background px-3 text-sm font-bold outline-none focus:border-primary transition-all"
+                    >
+                      <option value="none">No Batch</option>
+                      {batches.map(b => (
+                        <option key={b.id} value={b.id}>{b.batch_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter className="p-6 border-t bg-muted/20">
+                <Button 
+                  type="submit" 
+                  disabled={regLoading}
+                  className="w-full h-12 font-black text-base rounded-xl shadow-xl shadow-primary/10"
+                >
+                  {regLoading ? <Loader2 className="animate-spin mr-2" /> : <Sparkles size={18} className="mr-2" />}
+                  Complete Registration
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground px-1">
+          Showing all registered student profiles. Tap a name to view or edit full details.
+        </p>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">No profiles yet.</p>
       ) : (
@@ -212,7 +417,8 @@ const AdminStudentProfilesSection = () => {
         </div>
       )}
     </div>
-  );
+  </div>
+);
 };
 
 export default AdminStudentProfilesSection;

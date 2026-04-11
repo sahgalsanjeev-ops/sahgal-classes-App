@@ -25,6 +25,28 @@ export async function postUpdateStudentStatus(
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
 }
 
+export async function postRegisterStudent(
+  accessToken: string,
+  payload: {
+    fullName: string;
+    email: string;
+    mobile: string;
+    classSelection: string;
+    batchId: string;
+  }
+): Promise<void> {
+  const res = await fetch("/api/students/register", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJson(res);
+  if (!res.ok) throw new Error(data.error || `Registration failed: ${data.error}`);
+}
+
 export async function postDeleteStudent(accessToken: string, studentId: string): Promise<void> {
   const res = await fetch("/api/students/delete", {
     method: "POST",
