@@ -31,6 +31,8 @@ export type HomeworkRecord = {
   studentRollNo?: string;
   homeworkTitle: string;
   status: HomeworkStatus;
+  completionPercent?: number;
+  date?: string;
 };
 
 export type TestMarkRecord = {
@@ -38,19 +40,24 @@ export type TestMarkRecord = {
   studentEmail: string;
   studentRollNo?: string;
   testTitle: string;
-  /** Marks obtained / scored */
+  /** Marks obtained / scored or "A" for Absent */
   marksObtained: string;
   /** Maximum marks for this test */
   maxMarks: string;
-  /** Cached display; can be recomputed from obtained ÷ max */
+  /** Cached display; can be recomputed from obtained ÷ max or "A" */
   percentage?: string;
+  /** ISO date or DD-MM-YYYY */
+  date?: string;
 };
 
 /** Legacy field name from older saves */
 export type LegacyTestMarkRecord = TestMarkRecord & { marks?: string };
 
 export function computeTestPercentage(obtained: string, max: string): string {
-  const o = parseFloat(String(obtained).replace(/,/g, "").trim());
+  const oStr = String(obtained).trim().toUpperCase();
+  if (oStr === "A" || oStr === "ABSENT") return "A";
+  
+  const o = parseFloat(oStr.replace(/,/g, ""));
   const m = parseFloat(String(max).replace(/,/g, "").trim());
   if (!Number.isFinite(o) || !Number.isFinite(m) || m <= 0) return "—";
   const pct = (o / m) * 100;

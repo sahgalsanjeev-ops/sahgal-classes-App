@@ -15,6 +15,7 @@ import {
   X,
   Calendar as CalendarIcon,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import AdminOnlineTestSection from "@/components/admin/AdminOnlineTestSection";
 import AdminStudentProfilesSection from "@/components/admin/AdminStudentProfilesSection";
 import AdminHomeworkSection from "@/components/admin/AdminHomeworkSection";
@@ -44,6 +46,17 @@ import AdminNoticesSection from "@/components/admin/AdminNoticesSection";
 import AdminCatalogSection from "@/components/admin/AdminCatalogSection";
 import AdminHomeContentSection from "@/components/admin/AdminHomeContentSection";
 
+function parseDdMmYyyy(input: string): Date | undefined {
+  const t = input.trim();
+  const m = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(t);
+  if (!m) return undefined;
+  const day = parseInt(m[1], 10);
+  const month = parseInt(m[2], 10) - 1;
+  const year = parseInt(m[3], 10);
+  const d = new Date(year, month, day);
+  if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return undefined;
+  return d;
+}
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -532,9 +545,244 @@ const BatchManager = ({
   const [hwRecordTitle, setHwRecordTitle] = useState("");
   const [testTitle, setTestTitle] = useState("");
   const [testMaxMarks, setTestMaxMarks] = useState("");
-  const [testMarkDraft, setTestMarkDraft] = useState<Record<string, string>>({});
   const [attendanceDraft, setAttendanceDraft] = useState<Record<string, { status: "Present" | "Absent" | "Late"; minutesLate?: number }>>({});
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+
+  // Homework Records State
+  const [hwSessionDate, setHwSessionDate] = useState(() => new Date());
+  const hwDateKey = useMemo(() => format(hwSessionDate, "dd-MM-yyyy"), [hwSessionDate]);
+  const [hwDraft, setHwDraft] = useState<Record<string, { status: HomeworkStatus; percent?: number }>>({});
+  const [isSavingHw, setIsSavingHw] = useState(false);
+  const [editingHwKey, setEditingHwKey] = useState<string | null>(null);
+
+  // Test Records State
+  const [testSessionDate, setTestSessionDate] = useState(() => new Date());
+  const testDateKey = useMemo(() => format(testSessionDate, "dd-MM-yyyy"), [testSessionDate]);
+  const [testDraft, setTestDraft] = useState<Record<string, { marks: string; absent: boolean }>>({});
+  const [isSavingTest, setIsSavingTest] = useState(false);
+
+  // Load existing test into draft when date/title changes
+  useEffect(() => {
+    if (!selectedBatch || !testTitle.trim()) {
+      setTestDraft({});
+      return;
+    }
+    const date = testDateKey;
+    const title = testTitle.trim();
+    const draft: Record<string, { marks: string; absent: boolean }> = {};
+
+    selectedBatch.testMarksRecords.forEach((r) => {
+      if (r.date === date && r.testTitle === title) {
+        const student = selectedBatch.students.find(s => s.email.toLowerCase() === r.studentEmail.toLowerCase());
+        if (student) {
+          draft[student.id] = { 
+            marks: r.marksObtained === "A" ? "" : r.marksObtained, 
+            absent: r.marksObtained === "A" 
+          };
+        }
+      }
+    });
+    setTestDraft(draft);
+    if (selectedBatch.testMarksRecords.length > 0) {
+      const firstMatch = selectedBatch.testMarksRecords.find(r => r.date === date && r.testTitle === title);
+      if (firstMatch) setTestMaxMarks(firstMatch.maxMarks);
+    }
+  }, [selectedBatchId, testDateKey, testTitle, selectedBatch?.students]);
+
+  const saveTestSet = async () => {
+    if (!selectedBatch || !testTitle.trim() || !testMaxMarks.trim()) {
+      toast({ variant: "destructive", title: "Error", description: "Test name, total marks, and date are required." });
+      return;
+    }
+    setIsSavingTest(true);
+    try {
+      const date = testDateKey;
+      const title = testTitle.trim();
+      const max = testMaxMarks.trim();
+
+      await updateSelectedBatch((batch) => {
+        const otherRecords = batch.testMarksRecords.filter(
+          (r) => !(r.date === date && r.testTitle === title)
+        );
+
+        const newRecords = batch.students
+          .filter((s) => testDraft[s.id])
+          .map((s) => {
+            const marks = testDraft[s.id].absent ? "A" : testDraft[s.id].marks;
+            const pct = computeTestPercentage(marks, max);
+            return {
+              id: makeId(),
+              studentEmail: s.email.toLowerCase(),
+              studentRollNo: s.rollNo,
+              date,
+              testTitle: title,
+              maxMarks: max,
+              marksObtained: marks,
+              percentage: pct,
+            };
+          });
+
+        return {
+          ...batch,
+          testMarksRecords: [...otherRecords, ...newRecords as any],
+        };
+      });
+
+      toast({ title: "Test Record Saved", description: `Test "${title}" for ${date} saved.` });
+      setTestTitle("");
+      setTestMaxMarks("");
+      setTestDraft({});
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Save failed", description: error.message });
+    } finally {
+      setIsSavingTest(false);
+    }
+  };
+
+  const deleteTestSet = async (date: string, title: string) => {
+    if (!window.confirm(`Delete all records for "${title}" on ${date}?`)) return;
+    try {
+      await updateSelectedBatch((batch) => ({
+        ...batch,
+        testMarksRecords: batch.testMarksRecords.filter(
+          (r) => !(r.date === date && r.testTitle === title)
+        ),
+      }));
+      toast({ title: "Deleted", description: "Test records removed." });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Delete failed", description: error.message });
+    }
+  };
+
+  const editTestSet = (date: string, title: string) => {
+    setTestTitle(title);
+    const parsedDate = parseDdMmYyyy(date);
+    if (parsedDate) setTestSessionDate(parsedDate);
+    const el = document.getElementById("batch-section-tests");
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const testHistory = useMemo(() => {
+    if (!selectedBatch) return [];
+    const groups: Record<string, { date: string; title: string }> = {};
+    selectedBatch.testMarksRecords.forEach((r) => {
+      const key = `${r.date || "N/A"}_${r.testTitle}`;
+      if (!groups[key]) {
+        groups[key] = { date: r.date || "N/A", title: r.testTitle };
+      }
+    });
+    return Object.values(groups).sort((a, b) => {
+      const da = parseDdMmYyyy(a.date)?.getTime() || 0;
+      const db = parseDdMmYyyy(b.date)?.getTime() || 0;
+      return db - da;
+    });
+  }, [selectedBatch?.testMarksRecords]);
+
+  // Load existing homework into draft when date/title changes
+  useEffect(() => {
+    if (!selectedBatch || !hwRecordTitle.trim()) {
+      setHwDraft({});
+      return;
+    }
+    const date = hwDateKey;
+    const title = hwRecordTitle.trim();
+    const draft: Record<string, { status: HomeworkStatus; percent?: number }> = {};
+
+    selectedBatch.homeworkRecords.forEach((r) => {
+      if (r.date === date && r.homeworkTitle === title) {
+        const student = selectedBatch.students.find(s => s.email.toLowerCase() === r.studentEmail.toLowerCase());
+        if (student) {
+          draft[student.id] = { status: r.status, percent: r.completionPercent };
+        }
+      }
+    });
+    setHwDraft(draft);
+  }, [selectedBatchId, hwDateKey, hwRecordTitle, selectedBatch?.students]);
+
+  const saveHomework = async () => {
+    if (!selectedBatch || !hwRecordTitle.trim()) {
+      toast({ variant: "destructive", title: "Error", description: "Assignment name and date are required." });
+      return;
+    }
+    setIsSavingHw(true);
+    try {
+      const date = hwDateKey;
+      const title = hwRecordTitle.trim();
+
+      await updateSelectedBatch((batch) => {
+        // Remove existing records for THIS date and title
+        const otherRecords = batch.homeworkRecords.filter(
+          (r) => !(r.date === date && r.homeworkTitle === title)
+        );
+
+        // Add new records from draft
+        const newRecords = batch.students
+          .filter((s) => hwDraft[s.id])
+          .map((s) => ({
+            id: makeId(),
+            studentEmail: s.email.toLowerCase(),
+            studentRollNo: s.rollNo,
+            date,
+            homeworkTitle: title,
+            status: hwDraft[s.id].status,
+            completionPercent: hwDraft[s.id].percent,
+          }));
+
+        return {
+          ...batch,
+          homeworkRecords: [...otherRecords, ...newRecords as any],
+        };
+      });
+
+      toast({ title: "HW Record Saved", description: `Homework "${title}" for ${date} saved.` });
+      setHwRecordTitle("");
+      setHwDraft({});
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Save failed", description: error.message });
+    } finally {
+      setIsSavingHw(false);
+    }
+  };
+
+  const deleteHwRecordSet = async (date: string, title: string) => {
+    if (!window.confirm(`Delete all records for "${title}" on ${date}?`)) return;
+    try {
+      await updateSelectedBatch((batch) => ({
+        ...batch,
+        homeworkRecords: batch.homeworkRecords.filter(
+          (r) => !(r.date === date && r.homeworkTitle === title)
+        ),
+      }));
+      toast({ title: "Deleted", description: "Homework records removed." });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Delete failed", description: error.message });
+    }
+  };
+
+  const editHwRecordSet = (date: string, title: string) => {
+    setHwRecordTitle(title);
+    const parsedDate = parseDdMmYyyy(date);
+    if (parsedDate) setHwSessionDate(parsedDate);
+    const el = document.getElementById("batch-section-hw");
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // Grouped HW history for display
+  const hwHistory = useMemo(() => {
+    if (!selectedBatch) return [];
+    const groups: Record<string, { date: string; title: string }> = {};
+    selectedBatch.homeworkRecords.forEach((r) => {
+      const key = `${r.date || "N/A"}_${r.homeworkTitle}`;
+      if (!groups[key]) {
+        groups[key] = { date: r.date || "N/A", title: r.homeworkTitle };
+      }
+    });
+    return Object.values(groups).sort((a, b) => {
+      const da = parseDdMmYyyy(a.date)?.getTime() || 0;
+      const db = parseDdMmYyyy(b.date)?.getTime() || 0;
+      return db - da;
+    });
+  }, [selectedBatch?.homeworkRecords]);
 
   // Load existing attendance into draft when date or batch changes
   useEffect(() => {
@@ -640,22 +888,6 @@ const BatchManager = ({
     toast({ title: "Student removed", description: "Student detached from this batch." });
   };
 
-  const findTestRecord = (student: StudentProfile) => {
-    if (!selectedBatch) return undefined;
-    const t = testTitle.trim();
-    if (!t) return undefined;
-    return selectedBatch.testMarksRecords.find(
-      (r) => r.studentEmail.toLowerCase() === student.email.toLowerCase() && r.testTitle.trim() === t,
-    );
-  };
-
-  const obtainedDisplay = (student: StudentProfile) => {
-    const rec = findTestRecord(student);
-    const legacy = rec as { marksObtained?: string; marks?: string } | undefined;
-    if (testMarkDraft[student.id] !== undefined) return testMarkDraft[student.id];
-    return rec?.marksObtained ?? legacy?.marks ?? "";
-  };
-
   const hwStatusForStudent = (student: StudentProfile) => {
     if (!selectedBatch || !hwRecordTitle.trim()) return null;
     const t = hwRecordTitle.trim();
@@ -665,90 +897,10 @@ const BatchManager = ({
     return rec?.status ?? null;
   };
 
-  const saveTestMarkForStudent = (student: StudentProfile) => {
-    if (!selectedBatch) return;
-    const title = testTitle.trim();
-    const max = testMaxMarks.trim();
-    const obtained = obtainedDisplay(student).trim();
-    if (!title) {
-      toast({ variant: "destructive", title: "Test title required", description: "Enter the test name." });
-      return;
-    }
-    if (!max) {
-      toast({ variant: "destructive", title: "Max marks required", description: "Enter maximum marks for this test." });
-      return;
-    }
-    if (!obtained) {
-      toast({ variant: "destructive", title: "Marks required", description: "Enter marks obtained for this student." });
-      return;
-    }
-    const pct = computeTestPercentage(obtained, max);
-    updateSelectedBatch((batch) => {
-      const filtered = batch.testMarksRecords.filter(
-        (r) => !(r.studentEmail.toLowerCase() === student.email.toLowerCase() && r.testTitle.trim() === title),
-      );
-      return {
-        ...batch,
-        testMarksRecords: [
-          ...filtered,
-          {
-            id: makeId(),
-            studentEmail: student.email.toLowerCase(),
-            studentRollNo: student.rollNo,
-            testTitle: title,
-            marksObtained: obtained,
-            maxMarks: max,
-            percentage: pct === "—" ? undefined : pct,
-          },
-        ],
-      };
-    });
-    setTestMarkDraft((prev) => {
-      const next = { ...prev };
-      delete next[student.id];
-      return next;
-    });
-    toast({ title: "Saved", description: `Test record saved for ${student.name}.` });
-  };
-
   useEffect(() => {
     setTestTitle("");
     setTestMaxMarks("");
-    setTestMarkDraft({});
   }, [selectedBatchId]);
-
-  const setHomeworkQuick = (student: StudentProfile, status: HomeworkStatus) => {
-    const title = hwRecordTitle.trim();
-    if (!title) {
-      toast({
-        variant: "destructive",
-        title: "Homework title required",
-        description: "Enter the homework title above.",
-      });
-      return;
-    }
-    updateSelectedBatch((batch) => {
-      const filtered = batch.homeworkRecords.filter(
-        (r) =>
-          !(
-            r.studentEmail.toLowerCase() === student.email.toLowerCase() && r.homeworkTitle.trim() === title
-          ),
-      );
-      return {
-        ...batch,
-        homeworkRecords: [
-          ...filtered,
-          {
-            id: makeId(),
-            studentEmail: student.email.toLowerCase(),
-            studentRollNo: student.rollNo,
-            homeworkTitle: title,
-            status,
-          },
-        ],
-      };
-    });
-  };
 
   const saveEditedStudent = () => {
     if (!editingStudentId || !selectedBatch) return;
@@ -1198,63 +1350,187 @@ const BatchManager = ({
 
             <AccordionItem value="hw" id="batch-section-hw" className="border-b-0 border-t">
               <AccordionTrigger className="text-sm font-semibold py-3 hover:no-underline">
-                Add HW record ({selectedBatch.homeworkRecords.length})
+                <span className="flex items-center gap-2">
+                  <NotebookPen size={15} />
+                  Add HW record ({selectedBatch.homeworkRecords.length})
+                </span>
               </AccordionTrigger>
-              <AccordionContent className="space-y-3 pb-4">
-                <div>
-                  <label className="text-sm font-medium text-foreground">Homework title</label>
-                  <Input
-                    value={hwRecordTitle}
-                    onChange={(e) => setHwRecordTitle(e.target.value)}
-                    placeholder="e.g. Integration Set 3"
-                    className="mt-1"
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Enter one title, then mark each student with Done, Not done, or Incomplete. Tapping again updates the same student for this homework.
-                  </p>
+              <AccordionContent className="space-y-4 pb-4 px-1">
+                <div className="space-y-3 bg-muted/30 p-3 rounded-xl">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase ml-1">Session Date</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn("w-full justify-start text-left font-semibold h-11 rounded-lg border-2", 
+                              "hover:border-primary/50 hover:bg-background transition-all")}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                            {hwDateKey}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={hwSessionDate}
+                            onSelect={(d) => d && setHwSessionDate(d)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase ml-1">Assignment Name</label>
+                      <Input
+                        value={hwRecordTitle}
+                        onChange={(e) => setHwRecordTitle(e.target.value)}
+                        placeholder="e.g. Integration Set 3"
+                        className="h-11 font-semibold border-2 rounded-lg"
+                      />
+                    </div>
+                  </div>
                 </div>
+
                 {selectedBatch.students.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Add students first.</p>
+                  <div className="py-8 text-center border-2 border-dashed rounded-xl">
+                    <p className="text-sm text-muted-foreground">Add students first.</p>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     {selectedBatch.students.map((s) => {
-                      const current = hwStatusForStudent(s);
+                      const draft = hwDraft[s.id];
+                      const status = draft?.status;
+
                       return (
                         <div
                           key={s.id}
-                          className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2"
+                          className={cn(
+                            "flex flex-col gap-2 rounded-lg border-2 p-2 transition-all",
+                            status === "Done" ? "border-green-100 bg-green-50/30" : 
+                            status === "Not done" ? "border-red-100 bg-red-50/30" : 
+                            status === "Incomplete" ? "border-yellow-200 bg-yellow-50" : 
+                            "border-border bg-background"
+                          )}
                         >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground">
-                              <span className="text-primary">Roll {s.rollNo}</span> — {s.name}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground truncate">{s.email}</p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {(["Done", "Not done", "Incomplete"] as const).map((st) => {
-                              const selected = current === st;
-                              return (
-                                <Button
-                                  key={st}
-                                  type="button"
-                                  size="sm"
-                                  variant={
-                                    !selected ? "outline" : st === "Not done" ? "destructive" : "default"
-                                  }
-                                  className={cn(
-                                    "flex-1 min-w-[4.5rem] text-xs",
-                                    selected && st === "Incomplete" && "bg-amber-600 text-white hover:bg-amber-600/90 border-amber-600",
-                                  )}
-                                  onClick={() => setHomeworkQuick(s, st)}
-                                >
-                                  {st === "Not done" ? "Not done" : st}
-                                </Button>
-                              );
-                            })}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold text-foreground">
+                                {s.name} <span className="text-primary font-medium ml-1">({s.rollNo})</span>
+                              </p>
+                            </div>
+                            <div className="flex gap-1 p-1 bg-muted/50 rounded-lg shrink-0">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={status === "Done" ? "default" : "ghost"}
+                                className={cn(
+                                  "h-7 px-2.5 text-[10px] font-bold rounded-md transition-all",
+                                  status === "Done" ? "bg-green-600 hover:bg-green-700 shadow-sm" : "text-muted-foreground hover:text-green-600"
+                                )}
+                                onClick={() => setHwDraft(prev => ({ ...prev, [s.id]: { status: "Done" } }))}
+                              >
+                                Done
+                              </Button>
+
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={status === "Incomplete" ? "default" : "ghost"}
+                                    className={cn(
+                                      "h-7 px-2.5 text-[10px] font-bold rounded-md transition-all min-w-[4.5rem]",
+                                      status === "Incomplete" ? "bg-yellow-500 hover:bg-yellow-600 shadow-sm" : "text-muted-foreground hover:text-yellow-600"
+                                    )}
+                                  >
+                                    {status === "Incomplete" && draft?.percent ? `${draft.percent}%` : "Incomplete"}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-40 p-3" side="top" align="center">
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Completion %</label>
+                                    <Input
+                                      type="number"
+                                      autoFocus
+                                      value={draft?.percent || ""}
+                                      onChange={(e) => {
+                                        const val = parseInt(e.target.value, 10);
+                                        setHwDraft(prev => ({ 
+                                          ...prev, 
+                                          [s.id]: { status: "Incomplete", percent: isNaN(val) ? 0 : Math.min(100, Math.max(0, val)) } 
+                                        }));
+                                      }}
+                                      className="h-8 text-xs font-bold"
+                                      placeholder="0-100"
+                                    />
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={status === "Not done" ? "default" : "ghost"}
+                                className={cn(
+                                  "h-7 px-2.5 text-[10px] font-bold rounded-md transition-all",
+                                  status === "Not done" ? "bg-red-600 hover:bg-red-700 shadow-sm" : "text-muted-foreground hover:text-red-600"
+                                )}
+                                onClick={() => setHwDraft(prev => ({ ...prev, [s.id]: { status: "Not done" } }))}
+                              >
+                                Not Done
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       );
                     })}
+
+                    <Button 
+                      onClick={saveHomework} 
+                      disabled={isSavingHw}
+                      className="w-full h-14 mt-4 text-base font-bold gap-2 rounded-xl shadow-lg hover:shadow-primary/20 transition-all"
+                    >
+                      {isSavingHw ? <Loader2 className="animate-spin" size={20} /> : <NotebookPen size={20} />}
+                      {isSavingHw ? "Saving HW Record..." : "Save Record"}
+                    </Button>
+                  </div>
+                )}
+
+                {/* HW History Section */}
+                {hwHistory.length > 0 && (
+                  <div className="mt-8 space-y-3">
+                    <h4 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider ml-1">HW History</h4>
+                    <div className="space-y-2">
+                      {hwHistory.map((h) => (
+                        <div key={`${h.date}_${h.title}`} className="flex items-center justify-between p-3 rounded-xl border border-border bg-card shadow-sm group">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-foreground truncate">{h.title}</p>
+                            <p className="text-[11px] font-medium text-primary">{h.date}</p>
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10"
+                              onClick={() => editHwRecordSet(h.date, h.title)}
+                            >
+                              <Pencil size={14} />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => deleteHwRecordSet(h.date, h.title)}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </AccordionContent>
@@ -1262,123 +1538,174 @@ const BatchManager = ({
 
             <AccordionItem value="tests" id="batch-section-tests" className="border-b-0 border-t">
               <AccordionTrigger className="text-sm font-semibold py-3 hover:no-underline">
-                Add test record ({selectedBatch.testMarksRecords.length})
+                <span className="flex items-center gap-2">
+                  <BarChart3 size={15} />
+                  Add test record ({selectedBatch.testMarksRecords.length})
+                </span>
               </AccordionTrigger>
-              <AccordionContent className="space-y-3 pb-4">
-                <div className="grid grid-cols-1 gap-2">
-                  <Input
-                    value={testTitle}
-                    onChange={(e) => setTestTitle(e.target.value)}
-                    placeholder="Test name (e.g. Unit Test 2 — Algebra)"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    Use the same test name for every student. Set max marks once, then enter each student&apos;s score
-                    and save.
-                  </p>
-                </div>
-
-                <Tabs defaultValue="marks" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 h-10">
-                    <TabsTrigger value="marks">Max marks</TabsTrigger>
-                    <TabsTrigger value="pct">%</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="marks" className="space-y-3 pt-3 mt-0">
-                    <div>
-                      <label className="text-sm font-medium text-foreground">Maximum marks (whole test)</label>
+              <AccordionContent className="space-y-4 pb-4 px-1">
+                <div className="space-y-3 bg-muted/30 p-3 rounded-xl">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase ml-1">Test Date</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn("w-full justify-start text-left font-semibold h-11 rounded-lg border-2", 
+                              "hover:border-primary/50 hover:bg-background transition-all")}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                            {testDateKey}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={testSessionDate}
+                            onSelect={(d) => d && setTestSessionDate(d)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-1.5 flex-1">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase ml-1">Test Name</label>
+                      <Input
+                        value={testTitle}
+                        onChange={(e) => setTestTitle(e.target.value)}
+                        placeholder="e.g. Algebra Unit Test"
+                        className="h-11 font-semibold border-2 rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground uppercase ml-1">Total Marks</label>
                       <Input
                         value={testMaxMarks}
                         onChange={(e) => setTestMaxMarks(e.target.value)}
-                        placeholder="e.g. 50"
-                        className="mt-1 font-mono"
-                        inputMode="decimal"
+                        placeholder="Max Marks"
+                        className="h-11 font-semibold border-2 rounded-lg"
+                        type="number"
                       />
                     </div>
-                    {selectedBatch.students.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Add students first.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {selectedBatch.students.map((s) => {
-                          const obtained = obtainedDisplay(s);
-                          const pct = computeTestPercentage(obtained, testMaxMarks);
-                          return (
-                            <div
-                              key={s.id}
-                              className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2"
-                            >
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-foreground">
-                                  <span className="text-primary">Roll {s.rollNo}</span> — {s.name}
-                                </p>
-                                <p className="text-[11px] text-muted-foreground truncate">{s.email}</p>
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
-                                <div>
-                                  <label className="text-[11px] font-medium text-muted-foreground">Marks obtained</label>
-                                  <Input
-                                    value={obtained}
-                                    onChange={(e) =>
-                                      setTestMarkDraft((prev) => ({ ...prev, [s.id]: e.target.value }))
-                                    }
-                                    placeholder="0"
-                                    className="mt-0.5 font-mono"
-                                    inputMode="decimal"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-[11px] font-medium text-muted-foreground">Max</label>
-                                  <Input
-                                    value={testMaxMarks}
-                                    readOnly
-                                    className="mt-0.5 font-mono bg-muted/50"
-                                    tabIndex={-1}
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-[11px] font-medium text-muted-foreground">% (auto)</label>
-                                  <div className="mt-0.5 h-10 flex items-center rounded-md border border-input bg-muted/40 px-3 text-sm font-mono tabular-nums">
-                                    {pct}
-                                  </div>
-                                </div>
-                              </div>
-                              <Button type="button" size="sm" className="w-full" onClick={() => saveTestMarkForStudent(s)}>
-                                Save
-                              </Button>
+                  </div>
+                </div>
+
+                {selectedBatch.students.length === 0 ? (
+                  <div className="py-8 text-center border-2 border-dashed rounded-xl">
+                    <p className="text-sm text-muted-foreground">Add students first.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedBatch.students.map((s) => {
+                      const draft = testDraft[s.id] || { marks: "", absent: false };
+                      const pct = computeTestPercentage(draft.absent ? "A" : draft.marks, testMaxMarks);
+
+                      return (
+                        <div
+                          key={s.id}
+                          className={cn(
+                            "flex flex-col gap-2 rounded-lg border-2 p-2 transition-all",
+                            draft.absent ? "border-red-100 bg-red-50/30" : 
+                            draft.marks ? "border-green-100 bg-green-50/30" : 
+                            "border-border bg-background"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold text-foreground">
+                                {s.name} <span className="text-primary font-medium ml-1">({s.rollNo})</span>
+                              </p>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </TabsContent>
-                  <TabsContent value="pct" className="space-y-2 pt-3 mt-0">
-                    <p className="text-[11px] text-muted-foreground">
-                      Percentage is calculated as (marks obtained ÷ max marks) × 100. Edit scores in the &quot;Max
-                      marks&quot; tab.
-                    </p>
-                    {!testTitle.trim() || !testMaxMarks.trim() ? (
-                      <p className="text-xs text-muted-foreground">Enter test name and max marks in the other tab.</p>
-                    ) : selectedBatch.students.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Add students first.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {selectedBatch.students.map((s) => {
-                          const obtained = obtainedDisplay(s);
-                          const pct = computeTestPercentage(obtained, testMaxMarks);
-                          return (
-                            <div
-                              key={s.id}
-                              className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm"
-                            >
-                              <span className="min-w-0 truncate">
-                                <span className="font-semibold text-primary">Roll {s.rollNo}</span> — {s.name}
-                              </span>
-                              <span className="shrink-0 font-mono font-semibold tabular-nums">{pct}</span>
+                            
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5 mr-2">
+                                <Checkbox 
+                                  id={`absent-${s.id}`} 
+                                  checked={draft.absent}
+                                  onCheckedChange={(checked) => {
+                                    setTestDraft(prev => ({ 
+                                      ...prev, 
+                                      [s.id]: { ...prev[s.id], absent: !!checked } 
+                                    }));
+                                  }}
+                                />
+                                <label htmlFor={`absent-${s.id}`} className="text-[10px] font-bold text-muted-foreground uppercase cursor-pointer">Absent</label>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  disabled={draft.absent}
+                                  value={draft.marks}
+                                  onChange={(e) => {
+                                    setTestDraft(prev => ({ 
+                                      ...prev, 
+                                      [s.id]: { ...prev[s.id], marks: e.target.value } 
+                                    }));
+                                  }}
+                                  className="h-8 w-20 text-xs font-bold"
+                                  placeholder="Marks"
+                                />
+                                <div className={cn(
+                                  "h-8 px-2 flex items-center justify-center rounded border bg-muted/50 text-[10px] font-bold min-w-[3rem]",
+                                  pct === "A" ? "text-destructive" : "text-primary"
+                                )}>
+                                  {pct}
+                                </div>
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    <Button 
+                      onClick={saveTestSet} 
+                      disabled={isSavingTest}
+                      className="w-full h-14 mt-4 text-base font-bold gap-2 rounded-xl shadow-lg hover:shadow-primary/20 transition-all"
+                    >
+                      {isSavingTest ? <Loader2 className="animate-spin" size={20} /> : <BarChart3 size={20} />}
+                      {isSavingTest ? "Saving Test Records..." : "Save Test Record"}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Test History Section */}
+                {testHistory.length > 0 && (
+                  <div className="mt-8 space-y-3">
+                    <h4 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider ml-1">Test History</h4>
+                    <div className="space-y-2">
+                      {testHistory.map((h) => (
+                        <div key={`${h.date}_${h.title}`} className="flex items-center justify-between p-3 rounded-xl border border-border bg-card shadow-sm group">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-foreground truncate">{h.title}</p>
+                            <p className="text-[11px] font-medium text-primary">{h.date}</p>
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10"
+                              onClick={() => editTestSet(h.date, h.title)}
+                            >
+                              <Pencil size={14} />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => deleteTestSet(h.date, h.title)}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </AccordionContent>
             </AccordionItem>
           </Accordion>
