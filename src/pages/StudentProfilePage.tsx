@@ -78,7 +78,7 @@ const StudentProfilePage = () => {
       setProfile(p);
       if (p) hydrate(p);
       setLoading(false);
-      if (p && !p.onboarding_completed) {
+      if (p && (!p.full_name || !p.class_selection)) {
         navigate("/onboarding", { replace: true });
       }
     };

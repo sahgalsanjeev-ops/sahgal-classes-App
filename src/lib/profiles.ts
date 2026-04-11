@@ -48,7 +48,8 @@ export async function fetchProfile(userId: string | undefined): Promise<ProfileR
 export async function getPostLoginPath(userId: string | undefined, email: string | null | undefined): Promise<string> {
   if (isSuperAdminEmail(email)) return "/admin";
   const profile = await fetchProfile(userId);
-  if (!profile?.onboarding_completed) return "/onboarding";
+  // Condition: if Name or Class is missing, go to quick onboarding
+  if (!profile?.full_name || !profile?.class_selection) return "/onboarding";
   /** Student app home (dashboard). Registration details stay under Profile → My registration. */
   return "/";
 }

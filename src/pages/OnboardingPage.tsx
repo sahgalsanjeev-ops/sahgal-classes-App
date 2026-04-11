@@ -7,23 +7,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/components/ui/use-toast";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { isSuperAdminEmail } from "@/lib/adminAccess";
-import type { ClassSelection, FatherOccupationType } from "@/lib/profiles";
+import type { ClassSelection } from "@/lib/profiles";
 import { fetchProfile } from "@/lib/profiles";
-
-const Label = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <label className={`text-sm font-medium text-foreground ${className}`}>{children}</label>
-);
-
-const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 8 }}
-    animate={{ opacity: 1, y: 0 }}
-    className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3"
-  >
-    <h3 className="text-xs font-bold uppercase tracking-wide text-primary">{title}</h3>
-    {children}
-  </motion.div>
-);
+import { Loader2, Sparkles, User, Phone, GraduationCap } from "lucide-react";
 
 const OnboardingPage = () => {
   const navigate = useNavigate();
@@ -33,21 +19,6 @@ const OnboardingPage = () => {
   const [fullName, setFullName] = useState("");
   const [mobile, setMobile] = useState("");
   const [classSelection, setClassSelection] = useState<ClassSelection>("11th");
-  const [marks10, setMarks10] = useState("");
-  const [marks12, setMarks12] = useState("");
-  const [fatherName, setFatherName] = useState("");
-  const [fatherOccType, setFatherOccType] = useState<FatherOccupationType>("Service");
-  const [fatherOccDetails, setFatherOccDetails] = useState("");
-  const [motherName, setMotherName] = useState("");
-  const [motherOcc, setMotherOcc] = useState("");
-  const [guardianName, setGuardianName] = useState("");
-  const [guardianMobile, setGuardianMobile] = useState("");
-  const [guardianEmail, setGuardianEmail] = useState("");
-  const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
-  const [country, setCountry] = useState("India");
-  const [pinCode, setPinCode] = useState("");
 
   useEffect(() => {
     const run = async () => {
@@ -67,10 +38,19 @@ const OnboardingPage = () => {
         return;
       }
       const profile = await fetchProfile(data.user?.id);
-      if (profile?.onboarding_completed) {
+      
+      // Check condition: if Name and Class are already present, skip onboarding
+      if (profile?.full_name && profile?.class_selection) {
         navigate("/", { replace: true });
         return;
       }
+      
+      if (profile) {
+        setFullName(profile.full_name || "");
+        setMobile(profile.mobile || "");
+        setClassSelection(profile.class_selection || "11th");
+      }
+      
       setLoading(false);
     };
     void run();
@@ -84,36 +64,13 @@ const OnboardingPage = () => {
       toast({ variant: "destructive", title: "Required", description: "Name and mobile are required." });
       return;
     }
-    if (!marks10.trim()) {
-      toast({ variant: "destructive", title: "Required", description: "10th Class Maths marks are required." });
-      return;
-    }
-    if (classSelection !== "11th" && !marks12.trim()) {
-      toast({
-        variant: "destructive",
-        title: "Required",
-        description: "12th Class Maths marks are required for 12th / 12th Pass.",
-      });
-      return;
-    }
-    if (!fatherName.trim() || !motherName.trim() || !guardianName.trim()) {
-      toast({ variant: "destructive", title: "Required", description: "Please complete family & guardian names." });
-      return;
-    }
-    if (!guardianMobile.trim()) {
-      toast({ variant: "destructive", title: "Required", description: "Guardian mobile is required." });
-      return;
-    }
-    if (!address.trim() || !city.trim() || !state.trim() || !country.trim() || !pinCode.trim()) {
-      toast({ variant: "destructive", title: "Required", description: "Please complete address fields." });
-      return;
-    }
 
     setSaving(true);
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData.user) throw new Error(userErr?.message ?? "Not signed in.");
 
+      // Upsert logic: Update profile against student's email/id
       const { error } = await supabase.from("profiles").upsert(
         {
           id: userData.user.id,
@@ -121,194 +78,142 @@ const OnboardingPage = () => {
           full_name: fullName.trim(),
           mobile: mobile.trim(),
           class_selection: classSelection,
-          marks_10_maths: marks10.trim(),
-          marks_12_maths: classSelection === "11th" ? (marks12.trim() || null) : marks12.trim(),
-          father_name: fatherName.trim(),
-          father_occupation_type: fatherOccType,
-          father_occupation_details: fatherOccDetails.trim() || null,
-          mother_name: motherName.trim(),
-          mother_occupation: motherOcc.trim() || null,
-          guardian_name: guardianName.trim(),
-          guardian_mobile: guardianMobile.trim(),
-          guardian_email: guardianEmail.trim() || null,
-          address: address.trim(),
-          city: city.trim(),
-          state: state.trim(),
-          country: country.trim(),
-          pin_code: pinCode.trim(),
-          onboarding_completed: true,
+          onboarding_completed: true, // Mark as completed for legacy logic
         },
         { onConflict: "id" },
       );
 
       if (error) throw new Error(error.message);
 
-      toast({ title: "Registration complete", description: "Welcome to SAHGAL CLASSES." });
+      toast({ 
+        title: "Setup Complete! 🚀", 
+        description: `Welcome ${fullName.trim()}, let's start learning.` 
+      });
       navigate("/", { replace: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not save profile.";
-      toast({ variant: "destructive", title: "Save failed", description: msg });
+      toast({ variant: "destructive", title: "Setup failed", description: msg });
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <div className="min-h-screen grid place-items-center text-muted-foreground">Loading…</div>;
+    return (
+      <div className="min-h-screen grid place-items-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground font-medium animate-pulse">Setting up your experience...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-background pb-10">
-      <div className="bg-primary px-4 py-4">
-        <h1 className="text-lg font-bold text-primary-foreground">Student registration</h1>
-        <p className="text-xs text-primary-foreground/85 mt-1">SAHGAL CLASSES — please complete once</p>
-      </div>
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      {/* Decorative background elements */}
+      <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
 
-      <form onSubmit={handleSubmit} className="px-4 mt-4 space-y-4 max-w-lg mx-auto">
-        <Section title="Personal">
-          <div>
-            <Label>Full name</Label>
-            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-1" placeholder="As per records" />
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md space-y-8 relative z-10"
+      >
+        <div className="text-center space-y-2">
+          <div className="inline-flex p-3 rounded-2xl bg-primary/10 text-primary mb-2">
+            <Sparkles size={32} />
           </div>
-          <div>
-            <Label>Mobile number</Label>
-            <Input value={mobile} onChange={(e) => setMobile(e.target.value)} className="mt-1" inputMode="tel" placeholder="10-digit mobile" />
-          </div>
-          <div>
-            <Label>Roll number</Label>
-            <Input
-              value=""
-              disabled
-              readOnly
-              className="mt-1 bg-muted/50 text-muted-foreground"
-              placeholder="Assigned by admin after registration"
-            />
-            <p className="text-[10px] text-muted-foreground mt-1">Roll number is set only by admin.</p>
-          </div>
-        </Section>
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Quick Setup</h1>
+          <p className="text-muted-foreground">Just a few details to get you started</p>
+        </div>
 
-        <Section title="Class">
-          <Label>Current class / status</Label>
-          <RadioGroup value={classSelection} onValueChange={(v) => setClassSelection(v as ClassSelection)} className="mt-2 gap-2">
-            <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 cursor-pointer hover:bg-muted/40">
-              <RadioGroupItem value="11th" id="c11" />
-              <span className="text-sm">11th</span>
-            </label>
-            <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 cursor-pointer hover:bg-muted/40">
-              <RadioGroupItem value="12th" id="c12" />
-              <span className="text-sm">12th</span>
-            </label>
-            <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 cursor-pointer hover:bg-muted/40">
-              <RadioGroupItem value="12th_pass" id="c12p" />
-              <span className="text-sm">12th Pass</span>
-            </label>
-          </RadioGroup>
-        </Section>
-
-        <Section title="Academic">
-          <div>
-            <Label>10th class — Maths marks</Label>
-            <Input value={marks10} onChange={(e) => setMarks10(e.target.value)} className="mt-1" placeholder="e.g. 95 / A+" />
-          </div>
-          <div>
-            <Label>12th class — Maths marks {classSelection === "11th" ? "(optional)" : ""}</Label>
-            <Input
-              value={marks12}
-              onChange={(e) => setMarks12(e.target.value)}
-              className="mt-1"
-              placeholder={classSelection === "11th" ? "If applicable" : "Required for 12th / Pass"}
-            />
-          </div>
-        </Section>
-
-        <Section title="Family">
-          <div>
-            <Label>Father&apos;s name</Label>
-            <Input value={fatherName} onChange={(e) => setFatherName(e.target.value)} className="mt-1" />
-          </div>
-          <div>
-            <Label>Occupation</Label>
-            <select
-              value={fatherOccType}
-              onChange={(e) => setFatherOccType(e.target.value as FatherOccupationType)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="Service">Service</option>
-              <option value="Business">Business</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div>
-            <Label>Father&apos;s occupation details</Label>
-            <Input value={fatherOccDetails} onChange={(e) => setFatherOccDetails(e.target.value)} className="mt-1" placeholder="Designation / business type" />
-          </div>
-          <div>
-            <Label>Mother&apos;s name</Label>
-            <Input value={motherName} onChange={(e) => setMotherName(e.target.value)} className="mt-1" />
-          </div>
-          <div>
-            <Label>Mother&apos;s occupation</Label>
-            <Input value={motherOcc} onChange={(e) => setMotherOcc(e.target.value)} className="mt-1" />
-          </div>
-        </Section>
-
-        <Section title="Guardian">
-          <div>
-            <Label>Guardian&apos;s name</Label>
-            <Input value={guardianName} onChange={(e) => setGuardianName(e.target.value)} className="mt-1" />
-          </div>
-          <div>
-            <Label>Guardian mobile</Label>
-            <Input value={guardianMobile} onChange={(e) => setGuardianMobile(e.target.value)} className="mt-1" inputMode="tel" />
-          </div>
-          <div>
-            <Label>Guardian email</Label>
-            <Input
-              type="email"
-              value={guardianEmail}
-              onChange={(e) => setGuardianEmail(e.target.value)}
-              className="mt-1"
-              placeholder="optional"
-            />
-          </div>
-        </Section>
-
-        <Section title="Address">
-          <div>
-            <Label>Student&apos;s address</Label>
-            <textarea
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="mt-1 w-full min-h-[72px] rounded-md border border-input bg-background px-3 py-2 text-sm"
-              placeholder="House no., street, locality"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label>City</Label>
-              <Input value={city} onChange={(e) => setCity(e.target.value)} className="mt-1" />
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-foreground flex items-center gap-2 ml-1">
+                <User size={14} className="text-primary" />
+                Full Name
+              </label>
+              <Input 
+                value={fullName} 
+                onChange={(e) => setFullName(e.target.value)} 
+                className="h-12 text-base rounded-xl border-2 focus-visible:ring-primary/20 transition-all" 
+                placeholder="Enter your full name" 
+                required
+              />
             </div>
-            <div>
-              <Label>State</Label>
-              <Input value={state} onChange={(e) => setState(e.target.value)} className="mt-1" />
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-foreground flex items-center gap-2 ml-1">
+                <Phone size={14} className="text-primary" />
+                Mobile Number
+              </label>
+              <Input 
+                value={mobile} 
+                onChange={(e) => setMobile(e.target.value)} 
+                className="h-12 text-base rounded-xl border-2 focus-visible:ring-primary/20 transition-all" 
+                inputMode="tel" 
+                placeholder="10-digit mobile number" 
+                required
+              />
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-foreground flex items-center gap-2 ml-1">
+                <GraduationCap size={14} className="text-primary" />
+                Your Class
+              </label>
+              <RadioGroup 
+                value={classSelection} 
+                onValueChange={(v) => setClassSelection(v as ClassSelection)} 
+                className="grid grid-cols-1 gap-3"
+              >
+                {[
+                  { value: "11th", label: "11th Class" },
+                  { value: "12th", label: "12th Class" },
+                  { value: "12th_pass", label: "12th Pass / Dropper" }
+                ].map((item) => (
+                  <label 
+                    key={item.value}
+                    className={`flex items-center gap-3 rounded-xl border-2 px-4 py-3 cursor-pointer transition-all duration-200 ${
+                      classSelection === item.value 
+                        ? "border-primary bg-primary/5 shadow-sm" 
+                        : "border-border bg-card hover:border-primary/30"
+                    }`}
+                  >
+                    <RadioGroupItem value={item.value} id={item.value} className="sr-only" />
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      classSelection === item.value ? "border-primary bg-primary" : "border-muted-foreground/30"
+                    }`}>
+                      {classSelection === item.value && <div className="w-2 h-2 rounded-full bg-white" />}
+                    </div>
+                    <span className={`text-sm font-bold ${classSelection === item.value ? "text-primary" : "text-foreground"}`}>
+                      {item.label}
+                    </span>
+                  </label>
+                ))}
+              </RadioGroup>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label>Country</Label>
-              <Input value={country} onChange={(e) => setCountry(e.target.value)} className="mt-1" />
-            </div>
-            <div>
-              <Label>Pin code</Label>
-              <Input value={pinCode} onChange={(e) => setPinCode(e.target.value)} className="mt-1" inputMode="numeric" />
-            </div>
-          </div>
-        </Section>
 
-        <Button type="submit" disabled={saving} className="w-full h-12 rounded-xl text-base font-semibold">
-          {saving ? "Saving…" : "Submit registration"}
-        </Button>
-      </form>
+          <Button 
+            type="submit" 
+            disabled={saving} 
+            className="w-full h-14 text-lg font-black rounded-xl shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-all gap-2"
+          >
+            {saving ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              "Start Learning"
+            )}
+          </Button>
+          
+          <p className="text-center text-[11px] text-muted-foreground px-6">
+            By continuing, you agree to our terms. You can complete your full registration profile later in settings.
+          </p>
+        </form>
+      </motion.div>
     </div>
   );
 };
