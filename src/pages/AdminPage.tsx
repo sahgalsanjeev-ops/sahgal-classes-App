@@ -18,6 +18,7 @@ import {
   Trash2,
   Search,
   Filter,
+  PlayCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1511,35 +1512,92 @@ const BatchManager = ({
                     if (items.length === 0) return null;
 
                     return (
-                      <div key={type} className="space-y-2">
+                      <div key={type} className="space-y-3">
                         <h4 className="text-[10px] font-black text-primary uppercase tracking-widest ml-1">{type}s</h4>
-                        <div className="space-y-2">
-                          {items.map((item) => (
-                            <div 
-                              key={item.id} 
-                              className="flex items-center justify-between gap-3 p-3 rounded-xl border-2 border-border bg-card group hover:border-primary/20 transition-all"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-bold text-foreground truncate">{item.title}</p>
-                                <p className="text-[10px] text-muted-foreground truncate">{item.url_or_note || "Uploaded file"}</p>
-                              </div>
-                              <div className="flex gap-1 shrink-0">
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                                  onClick={() => {
-                                    if (window.confirm("Delete this content?")) {
-                                      void deleteBatchContent(item.id);
-                                    }
-                                  }}
+                        
+                        {type === "Video" ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {items.map((item) => {
+                              // Simple YouTube ID extraction
+                              let videoId = "";
+                              const url = item.url_or_note || "";
+                              if (url.includes("v=")) videoId = url.split("v=")[1]?.split("&")[0];
+                              else if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1]?.split("?")[0];
+                              else if (url.includes("embed/")) videoId = url.split("embed/")[1]?.split("?")[0];
+
+                              return (
+                                <div 
+                                  key={item.id} 
+                                  className="group relative flex flex-col gap-2 p-2 rounded-xl border-2 border-border bg-card hover:border-primary/20 transition-all shadow-sm"
                                 >
-                                  <Trash2 size={16} />
-                                </Button>
+                                  <div className="relative aspect-video rounded-lg overflow-hidden bg-muted border border-border">
+                                    {videoId ? (
+                                      <img 
+                                        src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`} 
+                                        alt={item.title}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <PlayCircle className="text-muted-foreground" size={24} />
+                                      </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                                      <PlayCircle className="text-white opacity-0 group-hover:opacity-100 transition-opacity" size={32} />
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex items-start justify-between gap-2 px-1">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-bold text-foreground truncate">{item.title}</p>
+                                      <p className="text-[10px] text-muted-foreground truncate">{item.url_or_note}</p>
+                                    </div>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 shrink-0"
+                                      onClick={() => {
+                                        if (window.confirm("Delete this video?")) {
+                                          void deleteBatchContent(item.id);
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 size={14} />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {items.map((item) => (
+                              <div 
+                                key={item.id} 
+                                className="flex items-center justify-between gap-3 p-3 rounded-xl border-2 border-border bg-card group hover:border-primary/20 transition-all shadow-sm"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-bold text-foreground truncate">{item.title}</p>
+                                  <p className="text-[10px] text-muted-foreground truncate">{item.url_or_note || "Uploaded file"}</p>
+                                </div>
+                                <div className="flex gap-1 shrink-0">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                    onClick={() => {
+                                      if (window.confirm("Delete this content?")) {
+                                        void deleteBatchContent(item.id);
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 size={16} />
+                                  </Button>
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}

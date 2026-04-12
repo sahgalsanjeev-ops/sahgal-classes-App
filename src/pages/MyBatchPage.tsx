@@ -5,6 +5,8 @@ import { Batch, BatchContent, computeTestPercentage, fetchBatchesSupabase, getBa
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { OnlineTestRow } from "@/lib/onlineTests";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PlayCircle } from "lucide-react";
 
 const MyBatchPage = () => {
   const navigate = useNavigate();
@@ -330,22 +332,25 @@ const MyBatchPage = () => {
 
 const SectionList = ({ type, items }: { type: string; items: BatchContent[] }) => {
   const navigate = useNavigate();
+  const [selectedVideo, setSelectedVideo] = useState<{ id: string; title: string } | null>(null);
+
+  const getYouTubeId = (url: string) => {
+    let videoId = "";
+    if (url.includes("v=")) {
+      videoId = url.split("v=")[1]?.split("&")[0];
+    } else if (url.includes("youtu.be/")) {
+      videoId = url.split("youtu.be/")[1]?.split("?")[0];
+    } else if (url.includes("embed/")) {
+      videoId = url.split("embed/")[1]?.split("?")[0];
+    }
+    return videoId;
+  };
 
   const handleItemClick = (item: BatchContent) => {
     if (type === "Video") {
-      // Extract video ID from YouTube URL
-      let videoId = "";
-      const url = item.url_or_note || "";
-      if (url.includes("v=")) {
-        videoId = url.split("v=")[1]?.split("&")[0];
-      } else if (url.includes("youtu.be/")) {
-        videoId = url.split("youtu.be/")[1]?.split("?")[0];
-      } else if (url.includes("embed/")) {
-        videoId = url.split("embed/")[1]?.split("?")[0];
-      }
-      
+      const videoId = getYouTubeId(item.url_or_note || "");
       if (videoId) {
-        navigate(`/video/${videoId}?title=${encodeURIComponent(item.title)}`);
+        setSelectedVideo({ id: videoId, title: item.title });
       } else {
         alert("Invalid YouTube URL");
       }
@@ -355,6 +360,82 @@ const SectionList = ({ type, items }: { type: string; items: BatchContent[] }) =
       }
     }
   };
+
+  if (type === "Video") {
+    return (
+      <div className="pb-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {items.length === 0 ? (
+            <p className="text-xs text-muted-foreground col-span-full">No videos yet.</p>
+          ) : (
+            items.map((item) => {
+              const videoId = getYouTubeId(item.url_or_note || "");
+              return (
+                <div 
+                  key={item.id}
+                  onClick={() => handleItemClick(item)}
+                  className="group cursor-pointer space-y-2"
+                >
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-muted border border-border shadow-sm group-hover:shadow-md transition-all">
+                    {videoId ? (
+                      <img 
+                        src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`} 
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <PlayCircle className="text-muted-foreground" size={32} />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-primary/90 text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                        <PlayCircle size={28} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="px-1">
+                    <p className="text-sm font-bold text-foreground line-clamp-2 group-hover:text-primary transition-colors">
+                      {item.title}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Video Modal Player */}
+        <Dialog open={!!selectedVideo} onOpenChange={(open) => !open && setSelectedVideo(null)}>
+          <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black border-none sm:rounded-2xl">
+            <DialogHeader className="p-4 bg-background/10 backdrop-blur-md absolute top-0 left-0 right-0 z-20">
+              <DialogTitle className="text-white text-sm font-bold truncate pr-8">
+                {selectedVideo?.title}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="relative w-full aspect-video">
+              {selectedVideo && (
+                <>
+                  <iframe
+                    src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&rel=0&modestbranding=1&controls=1`}
+                    title={selectedVideo.title}
+                    className="absolute inset-0 w-full h-full"
+                    allow="autoplay; encrypted-media"
+                    allowFullScreen
+                  />
+                  {/* Protection Overlay */}
+                  <div 
+                    className="absolute inset-0 z-10" 
+                    onContextMenu={(e) => e.preventDefault()}
+                  />
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
 
   return (
     <div className="pb-2">
