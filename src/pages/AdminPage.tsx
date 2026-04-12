@@ -286,23 +286,48 @@ const AdminPage = () => {
     setBatches(data);
   };
 
-  const addResource = async (type: "videos" | "homework" | "studyMaterialPdfs" | "testPapers", titleValue: string, linkValue: string) => {
-    if (!selectedBatch) return;
-    if (!titleValue.trim()) return;
-    const updated = {
-      ...selectedBatch,
-      [type]: [
-        ...selectedBatch[type],
-        {
-          id: makeId(),
-          title: titleValue.trim(),
-          link: linkValue.trim(),
-        },
-      ],
-    };
-    const next = batches.map((batch) => (batch.id === selectedBatch.id ? updated : batch));
-    await updateBatches(next);
-    await persistBatch(updated);
+  const addBatchContent = async (type: "Video" | "PDF" | "HW" | "Test", title: string, urlOrNote: string | null, filePath: string | null) => {
+    if (!selectedBatch || !supabase) return;
+    const { error } = await supabase.from("batch_content").insert({
+      batch_id: selectedBatch.id,
+      type,
+      title,
+      url_or_note: urlOrNote,
+      file_path: filePath
+    });
+    if (error) {
+      toast({ variant: "destructive", title: "Failed to add content", description: error.message });
+    } else {
+      toast({ title: "Content added", description: `${type} added to batch.` });
+      await refreshBatches();
+    }
+  };
+
+  const deleteBatchContent = async (id: string) => {
+    if (!supabase || !selectedBatch) return;
+    
+    // Find the item first to check if there's a file to delete
+    const item = (selectedBatch.batchContent || []).find(c => c.id === id);
+    
+    const { error } = await supabase.from("batch_content").delete().eq("id", id);
+    
+    if (error) {
+      toast({ variant: "destructive", title: "Failed to delete content", description: error.message });
+    } else {
+      // If there was an uploaded file, try to delete it from storage too
+      if (item?.file_path) {
+        const { error: storageError } = await supabase.storage
+          .from("course-materials")
+          .remove([item.file_path]);
+        
+        if (storageError) {
+          console.warn("Could not delete file from storage:", storageError.message);
+        }
+      }
+      
+      toast({ title: "Content deleted" });
+      await refreshBatches();
+    }
   };
 
   return (
@@ -473,7 +498,8 @@ const AdminPage = () => {
             setTeacherName={setTeacherName}
             handleCreateBatch={handleCreateBatch}
             handleDeleteBatch={handleDeleteBatch}
-            addResource={addResource}
+            addBatchContent={addBatchContent}
+            deleteBatchContent={deleteBatchContent}
             updateSelectedBatch={updateSelectedBatch}
             refreshBatches={refreshBatches}
           />
@@ -687,7 +713,8 @@ type BatchManagerProps = {
   setTeacherName: (v: string) => void;
   handleCreateBatch: () => void;
   handleDeleteBatch: (id: string) => void;
-  addResource: (type: "videos" | "homework" | "studyMaterialPdfs" | "testPapers", titleValue: string, linkValue: string) => void;
+  addBatchContent: (type: "Video" | "PDF" | "HW" | "Test", title: string, urlOrNote: string | null, filePath: string | null) => Promise<void>;
+  deleteBatchContent: (id: string) => Promise<void>;
   updateSelectedBatch: (updater: (batch: Batch) => Batch) => void;
   refreshBatches: () => void;
 };
@@ -709,7 +736,8 @@ const BatchManager = ({
   setTeacherName,
   handleCreateBatch,
   handleDeleteBatch,
-  addResource,
+  addBatchContent,
+  deleteBatchContent,
   updateSelectedBatch,
   refreshBatches,
 }: BatchManagerProps) => {
@@ -732,7 +760,10 @@ const BatchManager = ({
   const [editEmail, setEditEmail] = useState("");
   const [resourceTitle, setResourceTitle] = useState("");
   const [resourceLink, setResourceLink] = useState("");
-  const [resourceType, setResourceType] = useState<"videos" | "homework" | "studyMaterialPdfs" | "testPapers">("videos");
+  const [resourceType, setResourceType] = useState<"Video" | "PDF" | "HW" | "Test">("Video");
+  const [contentUploadOption, setContentUploadOption] = useState<"link" | "file">("link");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [hwRecordTitle, setHwRecordTitle] = useState("");
   const [testTitle, setTestTitle] = useState("");
   const [testMaxMarks, setTestMaxMarks] = useState("");
@@ -751,6 +782,52 @@ const BatchManager = ({
   const testDateKey = useMemo(() => format(testSessionDate, "dd-MM-yyyy"), [testSessionDate]);
   const [testDraft, setTestDraft] = useState<Record<string, { marks: string; absent: boolean }>>({});
   const [isSavingTest, setIsSavingTest] = useState(false);
+
+  const handleUploadAndAdd = async () => {
+    if (!selectedBatch || !resourceTitle.trim()) {
+      toast({ variant: "destructive", title: "Title required" });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      let finalUrlOrNote = resourceLink.trim();
+      let finalFilePath = null;
+
+      const isUploadType = resourceType === "PDF" || resourceType === "HW" || resourceType === "Test";
+
+      if (isUploadType && contentUploadOption === "file" && selectedFile) {
+        // Automatic Naming: Type_Batch_Date.extension
+        const extension = selectedFile.name.split('.').pop();
+        const batchName = selectedBatch.batchName.replace(/\s+/g, '_');
+        const dateStr = format(new Date(), "dd-MM-yyyy");
+        const formattedFileName = `${resourceType}_${batchName}_${dateStr}_${Date.now()}.${extension}`;
+        
+        const filePath = `course-materials/${selectedBatch.id}/${formattedFileName}`;
+        
+        const { error: uploadError } = await supabase!.storage
+          .from("course-materials")
+          .upload(filePath, selectedFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase!.storage.from("course-materials").getPublicUrl(filePath);
+        finalUrlOrNote = publicUrlData.publicUrl;
+        finalFilePath = filePath;
+      }
+
+      await addBatchContent(resourceType, resourceTitle.trim(), finalUrlOrNote || null, finalFilePath);
+      
+      // Reset form
+      setResourceTitle("");
+      setResourceLink("");
+      setSelectedFile(null);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Upload failed", description: err.message });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   // Load existing test into draft when date/title changes
   useEffect(() => {
@@ -1329,34 +1406,144 @@ const BatchManager = ({
               <AccordionTrigger className="text-sm font-semibold py-3 hover:no-underline">
                 <span className="flex items-center gap-2">
                   <NotebookPen size={15} />
-                  Course videos, HW, PDFs &amp; test papers
+                  Protected Course Content (Videos, PDFs, HW)
                 </span>
               </AccordionTrigger>
-              <AccordionContent className="space-y-3 pb-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <select
-                    value={resourceType}
-                    onChange={(e) => setResourceType(e.target.value as "videos" | "homework" | "studyMaterialPdfs" | "testPapers")}
-                    className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              <AccordionContent className="space-y-4 pb-4">
+                {/* Content Upload Form */}
+                <div className="bg-muted/30 p-4 rounded-xl border-2 border-dashed border-primary/20 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-muted-foreground uppercase ml-1">Content Type</label>
+                      <select
+                        value={resourceType}
+                        onChange={(e) => setResourceType(e.target.value as any)}
+                        className="w-full h-10 rounded-lg border-2 border-input bg-background px-3 text-sm font-bold"
+                      >
+                        <option value="Video">Video (YouTube Unlisted)</option>
+                        <option value="PDF">PDF (Document)</option>
+                        <option value="HW">Homework (HW)</option>
+                        <option value="Test">Test Paper</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-muted-foreground uppercase ml-1">Title</label>
+                      <Input 
+                        value={resourceTitle} 
+                        onChange={(e) => setResourceTitle(e.target.value)} 
+                        placeholder={resourceType === "Video" ? "e.g. Intro to React" : `e.g. ${resourceType} 1`} 
+                        className="h-10 font-semibold border-2"
+                      />
+                    </div>
+                  </div>
+
+                  {resourceType !== "Video" && (
+                    <div className="space-y-3">
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+                          <input 
+                            type="radio" 
+                            name="contentOption"
+                            checked={contentUploadOption === "link"} 
+                            onChange={() => setContentUploadOption("link")} 
+                          />
+                          Paste Link
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+                          <input 
+                            type="radio" 
+                            name="contentOption"
+                            checked={contentUploadOption === "file"} 
+                            onChange={() => setContentUploadOption("file")} 
+                          />
+                          Upload File
+                        </label>
+                      </div>
+                      
+                      {contentUploadOption === "file" ? (
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            type="file" 
+                            accept={resourceType === "Video" ? "video/*" : "application/pdf"}
+                            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                            className="h-10 text-xs flex-1"
+                          />
+                        </div>
+                      ) : (
+                        <Input 
+                          value={resourceLink} 
+                          onChange={(e) => setResourceLink(e.target.value)} 
+                          placeholder={`Paste ${resourceType} link here...`} 
+                          className="h-10 font-semibold border-2"
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {resourceType === "Video" && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-muted-foreground uppercase ml-1">
+                        YouTube Video URL (Unlisted)
+                      </label>
+                      <Input 
+                        value={resourceLink} 
+                        onChange={(e) => setResourceLink(e.target.value)} 
+                        placeholder="https://www.youtube.com/watch?v=..." 
+                        className="h-10 font-semibold border-2"
+                      />
+                    </div>
+                  )}
+
+                  <Button 
+                    onClick={handleUploadAndAdd} 
+                    disabled={isUploading || !resourceTitle.trim()} 
+                    className="w-full h-11 font-bold gap-2 shadow-lg"
                   >
-                    <option value="videos">Course Videos</option>
-                    <option value="homework">HW</option>
-                    <option value="studyMaterialPdfs">Study Material PDF</option>
-                    <option value="testPapers">Test Papers</option>
-                  </select>
-                  <Input value={resourceTitle} onChange={(e) => setResourceTitle(e.target.value)} placeholder="Title" />
-                  <Input value={resourceLink} onChange={(e) => setResourceLink(e.target.value)} placeholder="Link / note" />
+                    {isUploading ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
+                    {isUploading ? "Uploading..." : `Add ${resourceType}`}
+                  </Button>
                 </div>
-                <Button
-                  onClick={() => {
-                    addResource(resourceType, resourceTitle, resourceLink);
-                    setResourceTitle("");
-                    setResourceLink("");
-                  }}
-                  className="w-full"
-                >
-                  Add Content
-                </Button>
+
+                {/* Content List View */}
+                <div className="space-y-6 pt-2">
+                  {(["Video", "PDF", "HW", "Test"] as const).map((type) => {
+                    const items = (selectedBatch.batchContent || []).filter(c => c.type === type);
+                    if (items.length === 0) return null;
+
+                    return (
+                      <div key={type} className="space-y-2">
+                        <h4 className="text-[10px] font-black text-primary uppercase tracking-widest ml-1">{type}s</h4>
+                        <div className="space-y-2">
+                          {items.map((item) => (
+                            <div 
+                              key={item.id} 
+                              className="flex items-center justify-between gap-3 p-3 rounded-xl border-2 border-border bg-card group hover:border-primary/20 transition-all"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-bold text-foreground truncate">{item.title}</p>
+                                <p className="text-[10px] text-muted-foreground truncate">{item.url_or_note || "Uploaded file"}</p>
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                  onClick={() => {
+                                    if (window.confirm("Delete this content?")) {
+                                      void deleteBatchContent(item.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 size={16} />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </AccordionContent>
             </AccordionItem>
 

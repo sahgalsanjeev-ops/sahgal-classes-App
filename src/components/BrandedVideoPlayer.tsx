@@ -80,15 +80,19 @@ const BrandedVideoPlayer = ({
       <div className="relative w-full aspect-video overflow-hidden">
         <iframe
           ref={playerRef}
-          src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&disablekb=1&playsinline=1&fs=0`}
+          src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&controls=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&disablekb=1&playsinline=1&fs=0`}
           className="absolute inset-0 w-full h-full"
           allow="autoplay; encrypted-media"
           allowFullScreen={false}
           style={{ border: 0 }}
         />
 
-        {/* Overlay to block YouTube UI interactions */}
-        <div className="absolute inset-0 z-10" onClick={togglePlay} />
+        {/* Overlay to block YouTube UI interactions & Prevent Right-click */}
+        <div 
+          className="absolute inset-0 z-10" 
+          onClick={togglePlay} 
+          onContextMenu={(e) => e.preventDefault()}
+        />
 
         {/* Anti-Piracy Watermark */}
         <div

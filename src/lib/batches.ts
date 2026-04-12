@@ -14,6 +14,16 @@ export type BatchResource = {
   link: string;
 };
 
+export type BatchContent = {
+  id: string;
+  batch_id: string;
+  type: "Video" | "PDF" | "HW" | "Test";
+  title: string;
+  url_or_note: string | null;
+  file_path: string | null;
+  created_at?: string;
+};
+
 export type AttendanceRecord = {
   id: string;
   studentEmail: string;
@@ -79,6 +89,7 @@ export type Batch = {
   attendanceRecords: AttendanceRecord[];
   homeworkRecords: HomeworkRecord[];
   testMarksRecords: TestMarkRecord[];
+  batchContent?: BatchContent[];
   createdAt: string;
 };
 
@@ -110,19 +121,26 @@ export const fetchBatchesSupabase = async (): Promise<Batch[]> => {
     return [];
   }
 
-  // Fetch all enrollments and active profiles separately to avoid relation errors
-  const [{ data: enrollments, error: enrollError }, { data: profiles, error: profileError }] = await Promise.all([
+  // Fetch all enrollments, active profiles and batch content separately
+  const [
+    { data: enrollments, error: enrollError }, 
+    { data: profiles, error: profileError },
+    { data: content, error: contentError }
+  ] = await Promise.all([
     supabase.from("batch_enrollments").select("batch_id, student_email"),
-    supabase.from("profiles").select("id, full_name, mobile, roll_no, email").eq("status", "active")
+    supabase.from("profiles").select("id, full_name, mobile, roll_no, email").eq("status", "active"),
+    supabase.from("batch_content").select("*").order("created_at", { ascending: true })
   ]);
 
   if (enrollError) console.error("fetchEnrollments error:", enrollError);
   if (profileError) console.error("fetchProfiles error:", profileError);
+  if (contentError) console.error("fetchContent error:", contentError);
 
   console.log("Total Enrollments:", enrollments?.length || 0);
   console.log("Total Profiles:", profiles?.length || 0);
 
   const enrollmentMap: Record<string, StudentProfile[]> = {};
+  const contentMap: Record<string, BatchContent[]> = {};
   
   if (enrollments && profiles) {
     const profileMap = new Map(profiles.map(p => [p.email?.toLowerCase() || "", p]));
@@ -144,6 +162,13 @@ export const fetchBatchesSupabase = async (): Promise<Batch[]> => {
     });
   }
 
+  if (content) {
+    content.forEach((c: any) => {
+      if (!contentMap[c.batch_id]) contentMap[c.batch_id] = [];
+      contentMap[c.batch_id].push(c as BatchContent);
+    });
+  }
+
   return (data ?? []).map((row: any) => ({
     id: row.id,
     batchName: row.batch_name,
@@ -159,6 +184,7 @@ export const fetchBatchesSupabase = async (): Promise<Batch[]> => {
     attendanceRecords: row.attendance_records || [],
     homeworkRecords: row.homework_records || [],
     testMarksRecords: row.test_marks_records || [],
+    batchContent: contentMap[row.id] || [],
     createdAt: row.created_at,
   }));
 };

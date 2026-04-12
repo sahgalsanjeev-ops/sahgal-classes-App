@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Clock, FileText } from "lucide-react";
-import { Batch, computeTestPercentage, fetchBatchesSupabase, getBatches, makeId, StudentProfile } from "@/lib/batches";
+import { Batch, BatchContent, computeTestPercentage, fetchBatchesSupabase, getBatches, makeId, StudentProfile } from "@/lib/batches";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { OnlineTestRow } from "@/lib/onlineTests";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -179,7 +179,10 @@ const MyBatchPage = () => {
                   Course videos
                 </AccordionTrigger>
                 <AccordionContent>
-                  <SectionList title="" items={myBatch.videos} />
+                  <SectionList 
+                    type="Video" 
+                    items={(myBatch.batchContent || []).filter(c => c.type === "Video")} 
+                  />
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="hw" className="border-b-0 border-t">
@@ -187,7 +190,10 @@ const MyBatchPage = () => {
                   HW
                 </AccordionTrigger>
                 <AccordionContent>
-                  <SectionList title="" items={myBatch.homework} />
+                  <SectionList 
+                    type="HW" 
+                    items={(myBatch.batchContent || []).filter(c => c.type === "HW")} 
+                  />
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="pdf" className="border-b-0 border-t">
@@ -195,7 +201,10 @@ const MyBatchPage = () => {
                   Study material PDF
                 </AccordionTrigger>
                 <AccordionContent>
-                  <SectionList title="" items={myBatch.studyMaterialPdfs} />
+                  <SectionList 
+                    type="PDF" 
+                    items={(myBatch.batchContent || []).filter(c => c.type === "PDF")} 
+                  />
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="tests" className="border-b-0 border-t">
@@ -203,7 +212,10 @@ const MyBatchPage = () => {
                   Test papers
                 </AccordionTrigger>
                 <AccordionContent>
-                  <SectionList title="" items={myBatch.testPapers} />
+                  <SectionList 
+                    type="Test" 
+                    items={(myBatch.batchContent || []).filter(c => c.type === "Test")} 
+                  />
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="onlinetests" className="border-b-0 border-t">
@@ -316,27 +328,61 @@ const MyBatchPage = () => {
   );
 };
 
-const SectionList = ({ title, items }: { title: string; items: { id: string; title: string; link: string }[] }) => (
-  <div className="pb-2">
-    {title ? <h3 className="text-sm font-semibold text-foreground mb-2">{title}</h3> : null}
-    <div className="space-y-1">
-      {items.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No items yet.</p>
-      ) : (
-        items.map((item) => (
-          <a
-            key={item.id}
-            href={item.link || "#"}
-            target={item.link ? "_blank" : undefined}
-            rel={item.link ? "noreferrer" : undefined}
-            className="block text-xs text-primary hover:underline break-all"
-          >
-            {item.title}
-          </a>
-        ))
-      )}
+const SectionList = ({ type, items }: { type: string; items: BatchContent[] }) => {
+  const navigate = useNavigate();
+
+  const handleItemClick = (item: BatchContent) => {
+    if (type === "Video") {
+      // Extract video ID from YouTube URL
+      let videoId = "";
+      const url = item.url_or_note || "";
+      if (url.includes("v=")) {
+        videoId = url.split("v=")[1]?.split("&")[0];
+      } else if (url.includes("youtu.be/")) {
+        videoId = url.split("youtu.be/")[1]?.split("?")[0];
+      } else if (url.includes("embed/")) {
+        videoId = url.split("embed/")[1]?.split("?")[0];
+      }
+      
+      if (videoId) {
+        navigate(`/video/${videoId}?title=${encodeURIComponent(item.title)}`);
+      } else {
+        alert("Invalid YouTube URL");
+      }
+    } else if (type === "PDF" || type === "Test" || type === "HW") {
+      if (item.url_or_note) {
+        navigate(`/notes?pdf=${encodeURIComponent(item.url_or_note)}&title=${encodeURIComponent(item.title)}`);
+      }
+    }
+  };
+
+  return (
+    <div className="pb-2">
+      <div className="space-y-1">
+        {items.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No items yet.</p>
+        ) : (
+          items.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleItemClick(item)}
+              className="w-full text-left py-2 px-3 hover:bg-muted/50 rounded-lg transition-colors group flex items-center justify-between border border-transparent hover:border-border"
+            >
+              <div className="flex items-center gap-2">
+                <FileText size={14} className="text-muted-foreground" />
+                <p className="text-xs text-foreground font-medium group-hover:text-primary transition-colors">
+                  {item.title}
+                </p>
+              </div>
+              <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded uppercase">
+                {item.file_path ? "View File" : "Open Link"}
+              </span>
+            </button>
+          ))
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default MyBatchPage;

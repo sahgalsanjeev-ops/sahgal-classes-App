@@ -54,7 +54,19 @@ const PDFViewer = ({ title, pdfUrl }: PDFViewerProps) => {
           </div>
 
           {pdfUrl ? (
-            <iframe title={title} src={pdfUrl} className="w-full min-h-[70vh] rounded-lg border border-border" />
+            <div className="relative w-full h-[70vh] rounded-lg border border-border overflow-hidden">
+              {/* Overlay to prevent interactions with the viewer UI */}
+              <div 
+                className="absolute inset-0 z-10 bg-transparent" 
+                onContextMenu={(e) => e.preventDefault()}
+              />
+              <iframe 
+                title={title} 
+                src={`https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true`} 
+                className="w-full h-full"
+                style={{ border: "none" }}
+              />
+            </div>
           ) : (
             <>
               <h2 className="text-lg font-bold text-foreground mb-4">{title}</h2>
