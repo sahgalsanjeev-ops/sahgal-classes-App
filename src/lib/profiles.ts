@@ -33,6 +33,7 @@ export type ProfileRow = {
   account_status?: "active" | "inactive" | "blocked" | null;
   /** Student soft delete status: active | archived | blocked. */
   status?: "active" | "archived" | "blocked" | null;
+  current_session_id?: string | null;
   created_at?: string;
   updated_at?: string;
 };

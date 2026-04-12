@@ -131,9 +131,12 @@ const LoginPage = () => {
           return;
         }
   
-        // 3. Single Device Login Logic
-        const newSessionId = Math.random().toString(36).substring(7);
-        localStorage.setItem('current_session_id', newSessionId);
+        // 3. Single Device Login Logic (One Device Login Restriction)
+        const newSessionId = crypto.randomUUID();
+        localStorage.setItem('user_session_id', newSessionId);
+  
+        // Clear any old session logout flags
+        localStorage.removeItem('session_terminated');
   
         // Session update (Isme error aaye toh bhi app login hone degi)
         await supabase

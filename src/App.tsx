@@ -8,6 +8,7 @@ import BottomNav from "@/components/BottomNav";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { RequireCompleteStudentProfile } from "@/components/auth/RequireCompleteStudentProfile";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { SessionGuard } from "@/components/auth/SessionGuard";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import CoursesPage from "./pages/CoursesPage";
@@ -91,60 +92,62 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <div className="max-w-lg mx-auto bg-background min-h-screen relative shadow-xl">
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route
-              path="/onboarding"
-              element={
-                <ProtectedRoute>
-                  <OnboardingPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/" element={<StudentAppRoute><HomePage /></StudentAppRoute>} />
-            <Route path="/index" element={<StudentAppRoute><HomePage /></StudentAppRoute>} />
-            <Route path="/courses/:courseId/chapter/:chapterId" element={<StudentAppRoute><CourseChapterPage /></StudentAppRoute>} />
-            <Route path="/courses/:courseId" element={<StudentAppRoute><CourseProgramPage /></StudentAppRoute>} />
-            <Route path="/courses" element={<StudentAppRoute><CoursesPage /></StudentAppRoute>} />
-            <Route path="/course/:id" element={<StudentAppRoute><Navigate to="/courses" replace /></StudentAppRoute>} />
-            <Route path="/doubts" element={<StudentAppRoute><DoubtsPage /></StudentAppRoute>} />
-            <Route path="/homework" element={<StudentAppRoute><HomeworkPage /></StudentAppRoute>} />
-            <Route path="/profile" element={<StudentAppRoute><ProfilePage /></StudentAppRoute>} />
-            <Route path="/video/:videoId" element={<StudentAppRoute><VideoPage /></StudentAppRoute>} />
-            <Route path="/notes" element={<StudentAppRoute><NotesPage /></StudentAppRoute>} />
-            <Route path="/tests" element={<StudentAppRoute><TestPortalPage /></StudentAppRoute>} />
-            <Route path="/test/:testId" element={<StudentAppRoute><TestAttemptPage /></StudentAppRoute>} />
-            <Route path="/test-result/:testId" element={<StudentAppRoute><TestResultPage /></StudentAppRoute>} />
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute>
-                  <AdminRoute>
-                    <AdminPage />
-                  </AdminRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/student/:studentId"
-              element={
-                <ProtectedRoute>
-                  <AdminRoute>
-                    <AdminStudentDetailPage />
-                  </AdminRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/help" element={<StudentAppRoute><HelpSupportPage /></StudentAppRoute>} />
-            <Route path="/about" element={<StudentAppRoute><AboutPage /></StudentAppRoute>} />
-            <Route path="/my-batch" element={<StudentAppRoute><MyBatchPage /></StudentAppRoute>} />
-            <Route path="/settings" element={<StudentAppRoute><SettingsPage /></StudentAppRoute>} />
-            <Route path="/student-profile" element={<StudentAppRoute><StudentProfilePage /></StudentAppRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <BottomNav />
-        </div>
+        <SessionGuard>
+          <div className="max-w-lg mx-auto bg-background min-h-screen relative shadow-xl">
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route
+                path="/onboarding"
+                element={
+                  <ProtectedRoute>
+                    <OnboardingPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/" element={<StudentAppRoute><HomePage /></StudentAppRoute>} />
+              <Route path="/index" element={<StudentAppRoute><HomePage /></StudentAppRoute>} />
+              <Route path="/courses/:courseId/chapter/:chapterId" element={<StudentAppRoute><CourseChapterPage /></StudentAppRoute>} />
+              <Route path="/courses/:courseId" element={<StudentAppRoute><CourseProgramPage /></StudentAppRoute>} />
+              <Route path="/courses" element={<StudentAppRoute><CoursesPage /></StudentAppRoute>} />
+              <Route path="/course/:id" element={<StudentAppRoute><Navigate to="/courses" replace /></StudentAppRoute>} />
+              <Route path="/doubts" element={<StudentAppRoute><DoubtsPage /></StudentAppRoute>} />
+              <Route path="/homework" element={<StudentAppRoute><HomeworkPage /></StudentAppRoute>} />
+              <Route path="/profile" element={<StudentAppRoute><ProfilePage /></StudentAppRoute>} />
+              <Route path="/video/:videoId" element={<StudentAppRoute><VideoPage /></StudentAppRoute>} />
+              <Route path="/notes" element={<StudentAppRoute><NotesPage /></StudentAppRoute>} />
+              <Route path="/tests" element={<StudentAppRoute><TestPortalPage /></StudentAppRoute>} />
+              <Route path="/test/:testId" element={<StudentAppRoute><TestAttemptPage /></StudentAppRoute>} />
+              <Route path="/test-result/:testId" element={<StudentAppRoute><TestResultPage /></StudentAppRoute>} />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute>
+                    <AdminRoute>
+                      <AdminPage />
+                    </AdminRoute>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/student/:studentId"
+                element={
+                  <ProtectedRoute>
+                    <AdminRoute>
+                      <AdminStudentDetailPage />
+                    </AdminRoute>
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/help" element={<StudentAppRoute><HelpSupportPage /></StudentAppRoute>} />
+              <Route path="/about" element={<StudentAppRoute><AboutPage /></StudentAppRoute>} />
+              <Route path="/my-batch" element={<StudentAppRoute><MyBatchPage /></StudentAppRoute>} />
+              <Route path="/settings" element={<StudentAppRoute><SettingsPage /></StudentAppRoute>} />
+              <Route path="/student-profile" element={<StudentAppRoute><StudentProfilePage /></StudentAppRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            <BottomNav />
+          </div>
+        </SessionGuard>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
