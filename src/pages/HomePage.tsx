@@ -7,7 +7,6 @@ import HomeBannerSlider from "@/components/home/HomeBannerSlider";
 import HomeHighlightsRail from "@/components/home/HomeHighlightsRail";
 import HomeLiveClassesRail from "@/components/home/HomeLiveClassesRail";
 import HomeTestimonialsRail from "@/components/home/HomeTestimonialsRail";
-import StudentDashboard from "@/components/home/StudentDashboard";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { isSuperAdminEmail } from "@/lib/adminAccess";
@@ -128,13 +127,6 @@ const HomePage = () => {
     <div className="min-h-screen pb-20 bg-background">
       <AppHeader />
       
-      {/* Show Dashboard only for non-admin students */}
-      {!isAdminUser && !boardLoading && (
-        <div className="px-4 pt-4">
-          <StudentDashboard />
-        </div>
-      )}
-
       {/* Notice board */}
       <div className="px-4 mt-5 space-y-4">
         <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background overflow-hidden shadow-sm">

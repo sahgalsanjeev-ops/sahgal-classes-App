@@ -97,7 +97,7 @@ const StudentDashboard = () => {
   return (
     <div className="space-y-3 pb-2">
       {/* Attendance Horizontal Progress Bar - Very Compact */}
-      <Card className="border-none shadow-sm bg-gradient-to-r from-blue-50/50 to-white overflow-hidden">
+      <Card className="border border-border shadow-sm bg-card overflow-hidden">
         <CardContent className="p-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -116,7 +116,7 @@ const StudentDashboard = () => {
       {/* Side-by-Side Mini Charts */}
       <div className="grid grid-cols-2 gap-3">
         {/* Homework Mini Card */}
-        <Card className="border-none shadow-sm bg-gradient-to-br from-blue-50/50 to-white overflow-hidden">
+        <Card className="border border-border shadow-sm bg-card overflow-hidden">
           <CardContent className="p-3">
             <div className="flex items-center gap-1.5 mb-2">
               <CheckCircle2 size={13} className="text-primary" />
@@ -149,7 +149,7 @@ const StudentDashboard = () => {
         </Card>
 
         {/* Performance Mini Card */}
-        <Card className="border-none shadow-sm bg-gradient-to-br from-blue-50/50 to-white overflow-hidden">
+        <Card className="border border-border shadow-sm bg-card overflow-hidden">
           <CardContent className="p-3">
             <div className="flex items-center gap-1.5 mb-2">
               <TrendingUp size={13} className="text-primary" />

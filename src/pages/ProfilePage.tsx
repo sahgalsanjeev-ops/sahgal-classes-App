@@ -1,11 +1,11 @@
 import AppHeader from "@/components/AppHeader";
-import PerformanceCard from "@/components/PerformanceCard";
-import { User, Mail, LogOut, ChevronRight, Award } from "lucide-react";
+import { User, Mail, LogOut, ChevronRight, Award, LineChart } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { isSuperAdminEmail } from "@/lib/adminAccess";
 import { fetchProfile } from "@/lib/profiles";
+import StudentDashboard from "@/components/profile/StudentDashboard";
 
 const ProfilePage = () => {
   const navigate = useNavigate();
@@ -78,44 +78,16 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      {/* Performance Section */}
-      <div className="px-4 mt-5">
-        <h3 className="text-base font-bold text-foreground mb-3">Performance Dashboard</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <PerformanceCard type="homework" title="Homework" done={18} total={24} />
-          <PerformanceCard type="attendance" title="Live Attendance" done={28} total={32} />
-          <PerformanceCard type="video" title="Videos Watched" done={45} total={60} />
-          <PerformanceCard type="attendance" title="Offline Classes" done={22} total={25} />
-          <PerformanceCard type="test" title="Test Scores" done={385} total={500} unit="marks" />
-          <PerformanceCard type="syllabus" title="Syllabus Done" done={14} total={22} unit="topics" />
+      {/* Student Progress Dashboard - New Section */}
+      {!isAdmin && (
+        <div className="px-4 mt-5">
+          <div className="flex items-center gap-2 mb-3">
+            <LineChart size={18} className="text-primary" />
+            <h3 className="text-sm font-bold text-foreground">My Progress</h3>
+          </div>
+          <StudentDashboard />
         </div>
-      </div>
-
-      {/* Homework Details */}
-      <div className="px-4 mt-5">
-        <h3 className="text-sm font-bold text-foreground mb-2">Recent Homework</h3>
-        <div className="space-y-2">
-          {[
-            { title: "Kinematics Problems Set 3", status: "done", date: "28 Mar" },
-            { title: "Chemical Bonding Worksheet", status: "done", date: "27 Mar" },
-            { title: "Integration Practice", status: "pending", date: "Due: 2 Apr" },
-            { title: "Electrostatics Numericals", status: "pending", date: "Due: 4 Apr" },
-          ].map((hw, i) => (
-            <div key={i} className="flex items-center gap-3 bg-card rounded-xl border border-border p-3 shadow-sm">
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${hw.status === "done" ? "bg-success" : "bg-accent"}`} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{hw.title}</p>
-                <p className="text-[10px] text-muted-foreground">{hw.date}</p>
-              </div>
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                hw.status === "done" ? "text-success bg-success/10" : "text-accent bg-accent/10"
-              }`}>
-                {hw.status === "done" ? "Done" : "Pending"}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Menu Items */}
       <div className="px-4 mt-5 mb-4">
