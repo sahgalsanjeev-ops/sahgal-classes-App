@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Megaphone, NotebookPen, Pencil, Trash2 } from "lucide-react";
+import { Megaphone, Pencil, Trash2 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import HomeBannerSlider from "@/components/home/HomeBannerSlider";
-import ContinueLearningCard from "@/components/home/ContinueLearningCard";
 import HomeHighlightsRail from "@/components/home/HomeHighlightsRail";
 import HomeLiveClassesRail from "@/components/home/HomeLiveClassesRail";
 import HomeTestimonialsRail from "@/components/home/HomeTestimonialsRail";
+import StudentDashboard from "@/components/home/StudentDashboard";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { isSuperAdminEmail } from "@/lib/adminAccess";
-import type { HomeworkRow } from "@/lib/homework";
-import { isDeadlinePassed } from "@/lib/homework";
 import type { NoticeRow } from "@/lib/notices";
 import { toast } from "@/components/ui/use-toast";
 import {
@@ -29,7 +27,6 @@ import { Button } from "@/components/ui/button";
 const HomePage = () => {
   const navigate = useNavigate();
   const [notices, setNotices] = useState<NoticeRow[]>([]);
-  const [pendingHw, setPendingHw] = useState<HomeworkRow[]>([]);
   const [boardLoading, setBoardLoading] = useState(true);
   const [isAdminUser, setIsAdminUser] = useState(false);
 
@@ -58,21 +55,6 @@ const HomePage = () => {
     if (!nErr && nRows) setNotices(nRows as NoticeRow[]);
     else setNotices([]);
 
-    if (uid && !admin) {
-      const { data: hwRows } = await supabase
-        .from("homework")
-        .select("id, title, description, assigned_date, deadline, created_at")
-        .order("deadline", { ascending: true });
-      const { data: subRows } = await supabase
-        .from("homework_submissions")
-        .select("homework_id")
-        .eq("student_id", uid);
-      const done = new Set((subRows ?? []).map((s) => (s as { homework_id: string }).homework_id));
-      const open = ((hwRows ?? []) as HomeworkRow[]).filter((h) => !done.has(h.id));
-      setPendingHw(open);
-    } else {
-      setPendingHw([]);
-    }
     setBoardLoading(false);
   }, []);
 
@@ -145,11 +127,15 @@ const HomePage = () => {
   return (
     <div className="min-h-screen pb-20 bg-background">
       <AppHeader />
-      <HomeBannerSlider />
-      <ContinueLearningCard />
-      <HomeHighlightsRail />
+      
+      {/* Show Dashboard only for non-admin students */}
+      {!isAdminUser && !boardLoading && (
+        <div className="px-4 pt-4">
+          <StudentDashboard />
+        </div>
+      )}
 
-      {/* Notice board + pending homework */}
+      {/* Notice board */}
       <div className="px-4 mt-5 space-y-4">
         <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-background to-background overflow-hidden shadow-sm">
           <div className="bg-primary px-4 py-2.5 flex items-center gap-2">
@@ -211,97 +197,10 @@ const HomePage = () => {
             )}
           </div>
         </div>
-
-        {/* Edit Dialog */}
-        <Dialog open={!!editingNotice} onOpenChange={(open) => !open && setEditingNotice(null)}>
-          <DialogContent className="max-w-md rounded-2xl">
-            <DialogHeader>
-              <DialogTitle>Edit Notice</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Title</label>
-                <Input
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  placeholder="Notice title"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Message</label>
-                <Textarea
-                  value={editBody}
-                  onChange={(e) => setEditBody(e.target.value)}
-                  placeholder="Type your message here..."
-                  className="min-h-[120px]"
-                />
-              </div>
-            </div>
-            <DialogFooter className="flex-row gap-2 sm:justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 sm:flex-none"
-                onClick={() => setEditingNotice(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="flex-1 sm:flex-none"
-                onClick={handleUpdateNotice}
-                disabled={saving}
-              >
-                {saving ? "Saving..." : "Update Notice"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {!isAdminUser && (
-          <div className="rounded-2xl border border-primary/20 bg-card p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <div className="flex items-center gap-2">
-                <NotebookPen size={16} className="text-primary" />
-                <h2 className="text-sm font-bold text-foreground">Pending homework</h2>
-              </div>
-              <button type="button" onClick={() => navigate("/homework")} className="text-xs font-semibold text-primary">
-                HW
-              </button>
-            </div>
-            {boardLoading && <p className="text-xs text-muted-foreground">Loading…</p>}
-            {!boardLoading && pendingHw.length === 0 && (
-              <p className="text-xs text-muted-foreground">You&apos;re all caught up — or nothing assigned yet.</p>
-            )}
-            {!boardLoading && pendingHw.length > 0 && (
-              <ul className="space-y-2">
-                {pendingHw.slice(0, 8).map((h) => {
-                  const late = isDeadlinePassed(h.deadline);
-                  return (
-                    <li
-                      key={h.id}
-                      className={cn(
-                        "flex items-start justify-between gap-2 rounded-lg border px-3 py-2 text-xs",
-                        late ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/30",
-                      )}
-                    >
-                      <span className="font-medium text-foreground min-w-0">{h.title}</span>
-                      <span
-                        className={cn(
-                          "shrink-0 font-mono tabular-nums",
-                          late ? "text-destructive font-semibold" : "text-muted-foreground",
-                        )}
-                      >
-                        {format(new Date(h.deadline), "dd MMM, h:mm a")}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        )}
       </div>
+
+      <HomeHighlightsRail />
+      <HomeBannerSlider />
 
       <HomeLiveClassesRail />
       <HomeTestimonialsRail />
