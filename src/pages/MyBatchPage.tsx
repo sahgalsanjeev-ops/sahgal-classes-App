@@ -405,7 +405,7 @@ const SectionList = ({ type, items }: { type: string; items: BatchContent[] }) =
           )}
         </div>
 
-        {/* Video Modal Player */}
+        {/* Video Modal Player (Fix: Title above video, no blocking overlays, aggressive cropping) */}
         <Dialog open={!!selectedVideo} onOpenChange={(open) => !open && setSelectedVideo(null)}>
           <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black border-none sm:rounded-2xl">
             {/* Title ABOVE the video (Not absolute) */}

@@ -1,4 +1,5 @@
 import { useRef } from "react";
+// Video Player Fix: Strictly stacked Title and Video for better clickability and hidden top bar.
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
