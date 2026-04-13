@@ -408,27 +408,28 @@ const SectionList = ({ type, items }: { type: string; items: BatchContent[] }) =
         {/* Video Modal Player */}
         <Dialog open={!!selectedVideo} onOpenChange={(open) => !open && setSelectedVideo(null)}>
           <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black border-none sm:rounded-2xl">
-            <DialogHeader className="p-4 bg-background/10 backdrop-blur-md absolute top-0 left-0 right-0 z-20">
-              <DialogTitle className="text-white text-sm font-bold truncate pr-8">
+            {/* Title ABOVE the video (Not absolute) */}
+            <div className="p-4 bg-background border-b border-border">
+              <h3 className="text-sm font-bold text-foreground truncate">
                 {selectedVideo?.title}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="relative w-full aspect-video">
+              </h3>
+            </div>
+            
+            <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9' }}>
               {selectedVideo && (
-                <>
-                  <iframe
-                    src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&rel=0&modestbranding=1&controls=1`}
-                    title={selectedVideo.title}
-                    className="absolute inset-0 w-full h-full"
-                    allow="autoplay; encrypted-media"
-                    allowFullScreen
-                  />
-                  {/* Protection Overlay */}
-                  <div 
-                    className="absolute inset-0 z-10" 
-                    onContextMenu={(e) => e.preventDefault()}
-                  />
-                </>
+                <iframe
+                  src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&rel=0&modestbranding=1&controls=1&showinfo=0&iv_load_policy=3`}
+                  title={selectedVideo.title}
+                  className="absolute left-0 w-full"
+                  style={{ 
+                    height: '125%', 
+                    top: '-60px', // Aggressive crop
+                    border: 0,
+                    pointerEvents: 'auto' 
+                  }}
+                  allow="autoplay; encrypted-media"
+                  allowFullScreen
+                />
               )}
             </div>
           </DialogContent>

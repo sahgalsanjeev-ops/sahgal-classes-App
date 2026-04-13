@@ -19,8 +19,7 @@ const VideoPage = () => {
       
       {/* Video Info */}
       <div className="p-4">
-        <h2 className="text-base font-bold text-primary-foreground">{title}</h2>
-        <p className="text-xs text-primary-foreground/50 mt-1">By Sahgal Sir • SAHGAL CLASSES</p>
+        <p className="text-xs text-primary-foreground/50">By Sahgal Sir • SAHGAL CLASSES</p>
         
         <div className="mt-4 bg-primary-foreground/5 rounded-xl p-4">
           <h3 className="text-sm font-semibold text-primary-foreground/80">About this lecture</h3>
