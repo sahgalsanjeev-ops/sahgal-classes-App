@@ -73,67 +73,68 @@ const PDFViewer = ({ title, pdfUrl }: PDFViewerProps) => {
           </div>
 
           {pdfUrl ? (
-            <div className="relative w-full h-[75vh] rounded-lg border border-border overflow-hidden bg-muted/20">
-              {/* Overlay to prevent interactions with the viewer UI */}
+            <div 
+              className="relative w-full h-[75vh] rounded-lg border border-border overflow-hidden bg-muted/20"
+              onContextMenu={(e) => e.preventDefault()} // 4. Disable Right-Click
+            >
+              {/* 1. Main Overlay: Set to 'pointer-events: none' to allow scrolling to pass through to the iframe */}
               <div 
-                className="absolute inset-0 z-10 bg-transparent pointer-events-none" 
-                onContextMenu={(e) => e.preventDefault()}
+                className="absolute inset-0 z-20 bg-transparent pointer-events-none" 
+                style={{ width: '100%', height: '100%' }}
+              />
+
+              {/* 2. Corner Shield: A small invisible div to block clicks ONLY in the top-right corner where 'Pop-out' icon is */}
+              <div 
+                className="absolute top-0 right-0 z-30 bg-transparent"
+                style={{ width: '120px', height: '60px', pointerEvents: 'auto' }}
+                onClick={(e) => e.stopPropagation()}
               />
               
-              {/* Primary Viewer: Google Docs / Drive Preview */}
-              {!viewerError ? (
-                <>
+              {/* 3. CSS Cropping: Wrap in a container with overflow hidden */}
+              <div className="w-full h-full overflow-hidden relative z-10">
+                {!viewerError ? (
                   <iframe 
                     title={title} 
                     src={embedUrl}
-                    className="w-full h-full"
-                    style={{ border: "none" }}
+                    className="w-full"
+                    style={{ 
+                      border: "none", 
+                      height: "calc(100% + 55px)", // 1. Increase height for cropping
+                      marginTop: "-55px", // 1. Push Google toolbar outside visible area
+                      pointerEvents: "auto",
+                    }}
                     onError={() => setViewerError(true)}
                   />
-                  {/* Manual fallback button if iframe stays blank */}
-                  <button 
-                    onClick={() => setViewerError(true)}
-                    className="absolute bottom-4 right-4 z-20 bg-background/80 backdrop-blur-sm text-[10px] font-bold py-1 px-2 rounded border border-border opacity-50 hover:opacity-100 transition-opacity"
-                  >
-                    Not loading? Switch viewer
-                  </button>
-                </>
-              ) : (
-                /* Fallback: Browser Native Viewer */
-                <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
-                  <AlertCircle size={48} className="text-muted-foreground opacity-50" />
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Preview Failed</p>
-                    <p className="text-xs text-muted-foreground mt-1">We couldn't load the preview. You can try opening it directly.</p>
-                  </div>
-                  
-                  {/* Native Object Fallback with hidden toolbar */}
-                  <object
-                    data={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                    type="application/pdf"
-                    className="w-full h-full rounded-lg"
-                    style={{ 
-                      // @ts-ignore - object-view-toolbar is a non-standard property
-                      objectViewToolbar: "0",
-                    }}
-                  >
-                    <div className="flex flex-col items-center gap-4">
-                      <a 
-                        href={pdfUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold shadow-lg"
-                      >
-                        <ExternalLink size={16} />
-                        Open in New Tab
-                      </a>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
-                        Secure View Protected by SAHGAL CLASSES
-                      </p>
+                ) : (
+                  /* Fallback: Browser Native Viewer */
+                  <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
+                    <AlertCircle size={48} className="text-muted-foreground opacity-50" />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Preview Restricted</p>
+                      <p className="text-xs text-muted-foreground mt-1">This document is protected. Screenshots and downloads are blocked.</p>
                     </div>
-                  </object>
-                </div>
-              )}
+                    
+                    {/* Native Object Fallback with hidden toolbar */}
+                    <object
+                      data={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                      type="application/pdf"
+                      className="w-full h-full rounded-lg"
+                      style={{ 
+                        // @ts-ignore - object-view-toolbar is a non-standard property
+                        objectViewToolbar: "0",
+                        marginTop: "-50px", // 1. Cropping native viewer too
+                        height: "calc(100% + 50px)",
+                      }}
+                    >
+                      <div className="flex flex-col items-center gap-4">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
+                          Secure View Protected by SAHGAL CLASSES
+                        </p>
+                      </div>
+                    </object>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <>
