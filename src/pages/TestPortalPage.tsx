@@ -22,11 +22,12 @@ const TestPortalPage = () => {
 
     const { data, error: qErr } = await supabase
       .from("online_tests")
-      .select("id, title, duration_minutes, questions, created_at, batch_code")
+      .select("*")
       .order("created_at", { ascending: false });
 
     if (qErr) {
-      setError(qErr.message);
+      console.error("Full Online Tests Error:", qErr);
+      setError(`Fetch failed: ${qErr.message} (Code: ${qErr.code}). Check if columns 'duration_minutes', 'questions', 'batch_code' exist.`);
       setLoading(false);
       return;
     }

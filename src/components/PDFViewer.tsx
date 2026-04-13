@@ -1,5 +1,5 @@
-import { ArrowLeft, ZoomIn, ZoomOut } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, ZoomIn, ZoomOut, AlertCircle, ExternalLink } from "lucide-react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 interface PDFViewerProps {
@@ -10,6 +10,25 @@ interface PDFViewerProps {
 const PDFViewer = ({ title, pdfUrl }: PDFViewerProps) => {
   const navigate = useNavigate();
   const [zoom, setZoom] = useState(100);
+  const [viewerError, setViewerError] = useState(false);
+
+  // Link Transformation Logic
+  const embedUrl = useMemo(() => {
+    if (!pdfUrl) return "";
+    let url = pdfUrl.trim();
+
+    // Convert Google Drive view/edit links to preview links
+    if (url.includes("drive.google.com")) {
+      url = url.replace(/\/view(\?.*)?$/, "/preview").replace(/\/edit(\?.*)?$/, "/preview");
+      if (!url.includes("embedded=true")) {
+        url += (url.includes("?") ? "&" : "?") + "embedded=true";
+      }
+      return url;
+    }
+
+    // Default to Google Docs Viewer for other direct links
+    return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+  }, [pdfUrl]);
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -45,7 +64,7 @@ const PDFViewer = ({ title, pdfUrl }: PDFViewerProps) => {
         onContextMenu={(e) => e.preventDefault()}
       >
         <div
-          className="bg-card rounded-xl shadow-sm border border-border p-6 min-h-[80vh]"
+          className="bg-card rounded-xl shadow-sm border border-border p-6 min-h-[80vh] relative"
           style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
         >
           {/* Watermark overlay */}
@@ -54,18 +73,67 @@ const PDFViewer = ({ title, pdfUrl }: PDFViewerProps) => {
           </div>
 
           {pdfUrl ? (
-            <div className="relative w-full h-[70vh] rounded-lg border border-border overflow-hidden">
+            <div className="relative w-full h-[75vh] rounded-lg border border-border overflow-hidden bg-muted/20">
               {/* Overlay to prevent interactions with the viewer UI */}
               <div 
-                className="absolute inset-0 z-10 bg-transparent" 
+                className="absolute inset-0 z-10 bg-transparent pointer-events-none" 
                 onContextMenu={(e) => e.preventDefault()}
               />
-              <iframe 
-                title={title} 
-                src={`https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true`} 
-                className="w-full h-full"
-                style={{ border: "none" }}
-              />
+              
+              {/* Primary Viewer: Google Docs / Drive Preview */}
+              {!viewerError ? (
+                <>
+                  <iframe 
+                    title={title} 
+                    src={embedUrl}
+                    className="w-full h-full"
+                    style={{ border: "none" }}
+                    onError={() => setViewerError(true)}
+                  />
+                  {/* Manual fallback button if iframe stays blank */}
+                  <button 
+                    onClick={() => setViewerError(true)}
+                    className="absolute bottom-4 right-4 z-20 bg-background/80 backdrop-blur-sm text-[10px] font-bold py-1 px-2 rounded border border-border opacity-50 hover:opacity-100 transition-opacity"
+                  >
+                    Not loading? Switch viewer
+                  </button>
+                </>
+              ) : (
+                /* Fallback: Browser Native Viewer */
+                <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
+                  <AlertCircle size={48} className="text-muted-foreground opacity-50" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Preview Failed</p>
+                    <p className="text-xs text-muted-foreground mt-1">We couldn't load the preview. You can try opening it directly.</p>
+                  </div>
+                  
+                  {/* Native Object Fallback with hidden toolbar */}
+                  <object
+                    data={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                    type="application/pdf"
+                    className="w-full h-full rounded-lg"
+                    style={{ 
+                      // @ts-ignore - object-view-toolbar is a non-standard property
+                      objectViewToolbar: "0",
+                    }}
+                  >
+                    <div className="flex flex-col items-center gap-4">
+                      <a 
+                        href={pdfUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold shadow-lg"
+                      >
+                        <ExternalLink size={16} />
+                        Open in New Tab
+                      </a>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
+                        Secure View Protected by SAHGAL CLASSES
+                      </p>
+                    </div>
+                  </object>
+                </div>
+              )}
             </div>
           ) : (
             <>

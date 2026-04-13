@@ -89,26 +89,46 @@ const AdminStudentProfilesSection = ({ refreshBatches }: { refreshBatches?: () =
       const email = regForm.email.trim().toLowerCase();
 
       // 1. Conflict Check: Check if student already exists
-      const { data: existing } = await supabase
+      const { data: existing, error: checkError } = await supabase
         .from("profiles")
-        .select("id")
+        .select("id, status")
         .eq("email", email)
         .maybeSingle();
 
+      if (checkError) throw checkError;
+
       if (existing) {
-        throw new Error("Student already exists!");
+        if (existing.status === "archived") {
+          // Reactivate if archived
+          const { error: reactivateError } = await supabase
+            .from("profiles")
+            .update({ 
+              status: "active", 
+              account_status: "active",
+              full_name: regForm.fullName.trim(),
+              mobile: regForm.mobile.trim(),
+              class_selection: regForm.classSelection
+            })
+            .eq("id", existing.id);
+          
+          if (reactivateError) throw reactivateError;
+        } else {
+          throw new Error("Student with this email already exists and is active!");
+        }
+      } else {
+        // 2. Direct Supabase Insert
+        const { error: regError } = await supabase.from("profiles").insert({
+          email: email,
+          full_name: regForm.fullName.trim(),
+          mobile: regForm.mobile.trim(),
+          class_selection: regForm.classSelection,
+          onboarding_completed: true,
+          status: "active",
+          account_status: "active"
+        });
+
+        if (regError) throw regError;
       }
-
-      // 2. Direct Supabase Insert (Supabase handles ID automatically)
-      const { error: regError } = await supabase.from("profiles").insert({
-        email: email,
-        full_name: regForm.fullName.trim(),
-        mobile: regForm.mobile.trim(),
-        class_selection: regForm.classSelection,
-        onboarding_completed: true,
-      });
-
-      if (regError) throw regError;
 
       // 3. Batch auto-assignment if provided
       let assignedToBatch = false;

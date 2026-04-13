@@ -149,6 +149,7 @@ export const fetchBatchesSupabase = async (): Promise<Batch[]> => {
       if (!enrollmentMap[e.batch_id]) enrollmentMap[e.batch_id] = [];
       const emailKey = e.student_email?.toLowerCase();
       const profile = profileMap.get(emailKey);
+      
       if (profile) {
         enrollmentMap[e.batch_id].push({
           id: profile.id,
@@ -157,7 +158,14 @@ export const fetchBatchesSupabase = async (): Promise<Batch[]> => {
           rollNo: profile.roll_no || "",
         });
       } else {
-        console.warn(`No profile found for enrolled email: ${e.student_email}`);
+        // Fallback: If no profile found, still show the student with placeholder data
+        console.warn(`No profile found for enrolled email: ${e.student_email}. Using placeholder.`);
+        enrollmentMap[e.batch_id].push({
+          id: `placeholder-${e.student_email}`,
+          name: e.student_email.split('@')[0],
+          email: e.student_email,
+          rollNo: "Pending",
+        });
       }
     });
   }

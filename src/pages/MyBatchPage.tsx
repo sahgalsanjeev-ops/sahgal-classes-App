@@ -113,12 +113,13 @@ const MyBatchPage = () => {
     void (async () => {
       const { data, error } = await supabase
         .from("online_tests")
-        .select("id, title, duration_minutes, questions, created_at, batch_code")
+        .select("*")
         .eq("batch_code", code)
         .order("created_at", { ascending: false });
 
       if (cancelled) return;
       if (error) {
+        console.error("Batch Online Tests Fetch Error:", error);
         setBatchOnlineTests([]);
         setBatchTestsLoading(false);
         return;
