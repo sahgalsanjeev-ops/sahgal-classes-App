@@ -1,30 +1,54 @@
 import AppHeader from "@/components/AppHeader";
-import { User, Mail, LogOut, ChevronRight, Award, LineChart } from "lucide-react";
+import { User, Mail, LogOut, ChevronRight, Award, LineChart, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { isSuperAdminEmail } from "@/lib/adminAccess";
 import { fetchProfile } from "@/lib/profiles";
 import StudentDashboard from "@/components/profile/StudentDashboard";
+import StudentScoreCard from "@/components/profile/StudentScoreCard";
 
 const ProfilePage = () => {
   const navigate = useNavigate();
   const [studentEmail, setStudentEmail] = useState("Not available");
   const [displayName, setDisplayName] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [completedTests, setCompletedTests] = useState<any[]>([]);
+  const [loadingResults, setLoadingResults] = useState(false);
 
   useEffect(() => {
-    const loadEmail = async () => {
+    const loadData = async () => {
       if (!supabase) return;
-      const { data } = await supabase.auth.getUser();
-      const em = data.user?.email ?? "Not available";
+      const { data: { user } } = await supabase.auth.getUser();
+      const em = user?.email ?? "Not available";
       setStudentEmail(em);
-      setIsAdmin(isSuperAdminEmail(data.user?.email));
-      const p = await fetchProfile(data.user?.id);
+      setIsAdmin(isSuperAdminEmail(em));
+      
+      const p = await fetchProfile(user?.id);
       setDisplayName(p?.full_name?.trim() || "");
+
+      if (em && !isSuperAdminEmail(em)) {
+        setLoadingResults(true);
+        // Fetch attempts and join with test titles
+        const { data: attempts } = await supabase
+          .from("test_attempts")
+          .select("*, online_tests(test_title, questions)")
+          .eq("student_email", em)
+          .order("created_at", { ascending: false });
+        
+        if (attempts) {
+          const formatted = attempts.map(a => ({
+            ...a,
+            test_title: a.online_tests?.test_title || "Unknown Test",
+            questions: a.online_tests?.questions || []
+          }));
+          setCompletedTests(formatted);
+        }
+        setLoadingResults(false);
+      }
     };
 
-    void loadEmail();
+    void loadData();
   }, []);
 
   const handleLogout = async () => {
@@ -86,6 +110,31 @@ const ProfilePage = () => {
             <h3 className="text-sm font-bold text-foreground">My Progress</h3>
           </div>
           <StudentDashboard />
+        </div>
+      )}
+
+      {/* Completed Tests Section */}
+      {!isAdmin && completedTests.length > 0 && (
+        <div className="px-4 mt-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Trophy size={18} className="text-success" />
+            <h3 className="text-sm font-bold text-foreground">Completed Tests</h3>
+          </div>
+          <div className="space-y-3">
+            {completedTests.map((attempt) => (
+              <StudentScoreCard 
+                key={attempt.id}
+                testId={attempt.test_id}
+                testTitle={attempt.test_title}
+                score={attempt.score}
+                total={attempt.total_questions}
+                timeTaken={attempt.time_taken}
+                date={attempt.created_at}
+                questions={attempt.questions}
+                answers={attempt.answers}
+              />
+            ))}
+          </div>
         </div>
       )}
 

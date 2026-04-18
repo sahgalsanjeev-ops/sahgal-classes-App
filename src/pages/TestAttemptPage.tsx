@@ -116,7 +116,7 @@ const TestAttemptPage = () => {
     void run();
   }, [testId]);
 
-  const goToResult = useCallback(async () => {
+  const handleSubmit = useCallback(async () => {
     if (submittedRef.current) return;
     submittedRef.current = true;
     setSubmitted(true);
@@ -129,30 +129,57 @@ const TestAttemptPage = () => {
     const elapsedSec =
       startedAtRef.current != null ? Math.max(0, Math.floor((Date.now() - startedAtRef.current) / 1000)) : 0;
 
+    console.log("Submitting test results...", { testId, score, total, elapsedSec });
+
     try {
-      // Save to test_attempts
+      // 1. Get user session
       const { data: { session } } = await supabase.auth.getSession();
       const email = session?.user?.email;
 
-      if (email) {
-        const { error: saveErr } = await supabase.from("test_attempts").insert({
-          test_id: testId,
-          student_email: email,
-          score,
-          total_questions: total,
-          answers: ans,
-          time_taken: elapsedSec,
-        });
-
-        if (saveErr) {
-          console.error("Error saving test attempt:", saveErr);
-          toast.error("Failed to save your result. Please contact support.");
-        }
+      if (!email) {
+        throw new Error("No user email found. Please log in again.");
       }
 
-      // Clear timer from localStorage
+      // 2. Check for existing attempt (one student per test)
+      const { data: existingAttempt, error: checkErr } = await supabase
+        .from("test_attempts")
+        .select("id")
+        .eq("test_id", testId)
+        .eq("student_email", email)
+        .maybeSingle();
+
+      if (checkErr) {
+        console.error("Error checking for existing attempt:", checkErr);
+      }
+
+      if (existingAttempt) {
+        toast.error("You have already submitted this test.");
+        navigate(`/test-result/${testId}`, { replace: true });
+        return;
+      }
+
+      // 3. Save to test_attempts
+      const { error: saveErr } = await supabase.from("test_attempts").insert({
+        test_id: testId,
+        student_email: email,
+        score,
+        total_questions: total,
+        answers: ans,
+        time_taken: elapsedSec,
+      });
+
+      if (saveErr) {
+        console.error("Supabase Insert Error:", saveErr);
+        console.log("Failed data payload:", { test_id: testId, student_email: email, score, total_questions: total, answers: ans, time_taken: elapsedSec });
+        throw new Error(saveErr.message);
+      }
+
+      console.log("Test result saved successfully!");
+
+      // 4. Success Action: Clear timer from localStorage
       localStorage.removeItem(`test_start_${testId}`);
 
+      // 5. Redirect to result summary
       navigate(`/test-result/${testId}`, {
         state: {
           testTitle: title,
@@ -162,11 +189,16 @@ const TestAttemptPage = () => {
           total,
           timeTaken: elapsedSec,
         },
-        replace: true // Prevent going back to the test
+        replace: true
       });
-    } catch (err) {
-      console.error("Submission error:", err);
-      toast.error("An error occurred during submission.");
+    } catch (err: any) {
+      console.error("Submission failed:", err);
+      toast.error(`Submission failed: ${err.message || "Unknown error"}`);
+      // Re-enable if it failed so they can try again? 
+      // Actually, submittedRef.current = true prevents it.
+      // If it's a transient error, maybe let them retry.
+      submittedRef.current = false;
+      setSubmitted(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -180,7 +212,7 @@ const TestAttemptPage = () => {
         if (t <= 1) {
           window.clearInterval(id);
           // Trigger auto-submit immediately when timer reaches 0
-          void goToResult();
+          void handleSubmit();
           return 0;
         }
         return t - 1;
@@ -188,7 +220,7 @@ const TestAttemptPage = () => {
     }, 1000);
 
     return () => window.clearInterval(id);
-  }, [loading, submitted, questions.length, goToResult]);
+  }, [loading, submitted, questions.length, handleSubmit]);
 
   const q = questions[current];
   const mins = Math.floor(timeLeft / 60);
@@ -326,7 +358,7 @@ const TestAttemptPage = () => {
         ) : (
           <Button 
             type="button" 
-            onClick={goToResult} 
+            onClick={handleSubmit} 
             disabled={isSubmitting}
             className="h-12 rounded-xl flex-1 bg-destructive hover:bg-destructive/90"
           >

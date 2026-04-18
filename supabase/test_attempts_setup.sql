@@ -7,7 +7,8 @@ create table if not exists public.test_attempts (
   total_questions int not null,
   answers jsonb, -- Record<string, number> where string is question_id and number is selected_option index
   time_taken int, -- in seconds
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  unique(test_id, student_email)
 );
 
 -- Enable RLS

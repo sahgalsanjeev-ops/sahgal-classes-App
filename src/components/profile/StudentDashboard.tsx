@@ -15,7 +15,8 @@ const StudentDashboard = () => {
     attendance: AttendanceRecord[];
     homework: HomeworkRecord[];
     tests: TestMarkRecord[];
-  }>({ attendance: [], homework: [], tests: [] });
+    onlineAttempts: any[];
+  }>({ attendance: [], homework: [], tests: [], onlineAttempts: [] });
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -24,6 +25,14 @@ const StudentDashboard = () => {
         if (!user) return;
 
         const email = user.email?.toLowerCase();
+        
+        // Fetch online attempts
+        const { data: onlineData } = await supabase
+          .from("test_attempts")
+          .select("*")
+          .eq("student_email", email)
+          .order("created_at", { ascending: true });
+
         const batches = await fetchBatchesSupabase();
         
         let allAttendance: AttendanceRecord[] = [];
@@ -43,7 +52,8 @@ const StudentDashboard = () => {
         setData({
           attendance: allAttendance,
           homework: allHomework,
-          tests: allTests
+          tests: allTests,
+          onlineAttempts: onlineData || []
         });
       } catch (error) {
         console.error("Dashboard data load error:", error);
@@ -64,15 +74,26 @@ const StudentDashboard = () => {
 
   // 2. Test Trends Logic (Mini Area Chart)
   const testTrends = useMemo(() => {
-    return data.tests
-      .slice(-5)
-      .map(t => {
-        const obtained = parseFloat(t.marksObtained);
-        const max = parseFloat(t.maxMarks);
-        const percentage = isNaN(obtained) || isNaN(max) ? 0 : Math.round((obtained / max) * 100);
-        return { score: percentage };
-      });
-  }, [data.tests]);
+    // Combine legacy tests and online attempts
+    const legacyScores = data.tests.map(t => {
+      const obtained = parseFloat(t.marksObtained);
+      const max = parseFloat(t.maxMarks);
+      return { 
+        score: isNaN(obtained) || isNaN(max) ? 0 : Math.round((obtained / max) * 100),
+        date: new Date(t.date || 0).getTime()
+      };
+    });
+
+    const onlineScores = data.onlineAttempts.map(t => ({
+      score: Math.round((t.score / t.total_questions) * 100),
+      date: new Date(t.created_at).getTime()
+    }));
+
+    return [...legacyScores, ...onlineScores]
+      .sort((a, b) => a.date - b.date)
+      .slice(-6)
+      .map(t => ({ score: t.score }));
+  }, [data.tests, data.onlineAttempts]);
 
   // 3. Homework Logic (Mini Pie Chart)
   const homeworkStats = useMemo(() => {

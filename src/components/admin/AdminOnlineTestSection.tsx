@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, ClipboardList, ImagePlus, X, Pencil, Loader2 } from "lucide-react";
+import { Plus, Trash2, ClipboardList, ImagePlus, X, Pencil, Loader2, BarChart3, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
@@ -8,6 +8,7 @@ import { makeId } from "@/lib/batches";
 import type { McqQuestionJson, OnlineTestRow } from "@/lib/onlineTests";
 import { KaTeXText } from "@/components/KaTeXText";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import TestResultList from "./TestResultList";
 
 const STORAGE_BUCKET = "lesson-pdfs";
 const IMAGE_PREFIX = "online-test-images";
@@ -56,6 +57,7 @@ const AdminOnlineTestSection = () => {
 
   // Edit states
   const [editingTestId, setEditingTestId] = useState<string | null>(null);
+  const [viewingResultsId, setViewingResultsId] = useState<string | null>(null);
 
   // List states
   const [publishedTests, setPublishedTests] = useState<OnlineTestRow[]>([]);
@@ -334,7 +336,25 @@ const AdminOnlineTestSection = () => {
         </TabsList>
 
         <TabsContent value="list" className="space-y-4 pt-4">
-          {loadingTests ? (
+          {viewingResultsId ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="gap-2 text-primary font-bold uppercase tracking-tight"
+                  onClick={() => setViewingResultsId(null)}
+                >
+                  <ArrowLeft size={16} />
+                  Back to List
+                </Button>
+                <h3 className="text-sm font-black text-foreground uppercase tracking-tight">
+                  {publishedTests.find(t => t.id === viewingResultsId)?.test_title} Results
+                </h3>
+              </div>
+              <TestResultList testId={viewingResultsId} />
+            </div>
+          ) : loadingTests ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Loader2 className="animate-spin mb-2" size={24} />
               <p className="text-sm">Loading tests...</p>
@@ -359,6 +379,15 @@ const AdminOnlineTestSection = () => {
                       </p>
                     </div>
                     <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-8 gap-1.5 text-[11px] font-bold uppercase tracking-tight border-primary/20 hover:bg-primary/5 hover:text-primary"
+                        onClick={() => setViewingResultsId(test.id)}
+                      >
+                        <BarChart3 size={14} />
+                        Results
+                      </Button>
                       <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => handleEditClick(test)}>
                         <Pencil size={14} />
                       </Button>

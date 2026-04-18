@@ -15,7 +15,7 @@ const MyBatchPage = () => {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
   const [batchOnlineTests, setBatchOnlineTests] = useState<OnlineTestRow[]>([]);
-  const [attempts, setAttempts] = useState<Set<string>>(new Set());
+  const [attempts, setAttempts] = useState<Map<string, any>>(new Map());
   const [batchTestsLoading, setBatchTestsLoading] = useState(false);
 
   useEffect(() => {
@@ -38,11 +38,11 @@ const MyBatchPage = () => {
           // Fetch attempts
           const { data: attemptsData } = await supabase
             .from("test_attempts")
-            .select("test_id")
+            .select("*")
             .eq("student_email", userEmail);
           
           if (attemptsData) {
-            setAttempts(new Set(attemptsData.map(a => a.test_id)));
+            setAttempts(new Map(attemptsData.map(a => [a.test_id, a])));
           }
         }
       }
@@ -276,22 +276,46 @@ const MyBatchPage = () => {
                       batchOnlineTests.map((test) => {
                         const qCount = Array.isArray(test.questions) ? test.questions.length : 0;
                         const duration = Math.max(1, Number(test.duration_minutes) || 30);
-                        const isAttempted = attempts.has(test.id);
+                        const attemptData = attempts.get(test.id);
+                        const isAttempted = !!attemptData;
+
+                        const handleReview = (e: React.MouseEvent) => {
+                          e.stopPropagation();
+                          navigate(`/test-result/${test.id}`, {
+                            state: {
+                              testTitle: test.test_title,
+                              answers: attemptData.answers,
+                              questions: test.questions,
+                              score: attemptData.score,
+                              total: attemptData.total_questions,
+                              timeTaken: attemptData.time_taken,
+                            },
+                          });
+                        };
+
                         return (
-                          <button
+                          <div
                             key={test.id}
-                            type="button"
-                            disabled={isAttempted}
-                            onClick={() => !isAttempted && navigate(`/test/${test.id}`)}
                             className={`w-full text-left rounded-lg border border-border px-3 py-2.5 transition-all ${
                               isAttempted 
-                                ? "bg-muted/30 opacity-70 cursor-default" 
-                                : "bg-background hover:bg-muted/50 active:scale-[0.98]"
+                                ? "bg-muted/30" 
+                                : "bg-background hover:bg-muted/50 active:scale-[0.98] cursor-pointer"
                             }`}
+                            onClick={() => !isAttempted && navigate(`/test/${test.id}`)}
                           >
-                            <p className={`text-xs font-semibold ${isAttempted ? "text-muted-foreground" : "text-foreground"}`}>
-                              {test.test_title}
-                            </p>
+                            <div className="flex items-center justify-between">
+                              <p className={`text-xs font-semibold ${isAttempted ? "text-muted-foreground" : "text-foreground"}`}>
+                                {test.test_title}
+                              </p>
+                              {isAttempted && (
+                                <button
+                                  onClick={handleReview}
+                                  className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-md hover:bg-primary/20 transition-colors"
+                                >
+                                  Review Result
+                                </button>
+                              )}
+                            </div>
                             <div className="flex items-center justify-between mt-1">
                               <p className="text-[10px] text-muted-foreground flex items-center gap-3">
                                 <span className="inline-flex items-center gap-0.5">
@@ -302,8 +326,8 @@ const MyBatchPage = () => {
                                 </span>
                               </p>
                               {isAttempted && (
-                                <span className="text-[9px] font-bold text-success flex items-center gap-1">
-                                  Attempted
+                                <span className="text-[10px] font-bold text-success flex items-center gap-1">
+                                  Score: {attemptData.score}/{attemptData.total_questions}
                                 </span>
                               )}
                             </div>
@@ -312,7 +336,7 @@ const MyBatchPage = () => {
                                 You have already attempted this test
                               </p>
                             )}
-                          </button>
+                          </div>
                         );
                       })
                     )}
