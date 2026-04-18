@@ -1625,7 +1625,7 @@ const BatchManager = ({
               <AccordionTrigger className="text-sm font-semibold py-3 hover:no-underline">
                 <span className="flex items-center gap-2">
                   <ClipboardCheck size={15} />
-                  Add attendance ({selectedBatch.attendanceRecords.length})
+                  Add attendance ({new Set(selectedBatch.attendanceRecords.map(r => r.date.trim())).size} Days)
                 </span>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pb-4 px-1">
@@ -1800,7 +1800,7 @@ const BatchManager = ({
               <AccordionTrigger className="text-sm font-semibold py-3 hover:no-underline">
                 <span className="flex items-center gap-2">
                   <NotebookPen size={15} />
-                  Add HW record ({selectedBatch.homeworkRecords.length})
+                  Add HW record ({new Set(selectedBatch.homeworkRecords.map(r => `${r.date}_${r.homeworkTitle}`)).size} Assignments)
                 </span>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pb-4 px-1">
@@ -2000,7 +2000,7 @@ const BatchManager = ({
               <AccordionTrigger className="text-sm font-semibold py-3 hover:no-underline">
                 <span className="flex items-center gap-2">
                   <BarChart3 size={15} />
-                  Add test record ({selectedBatch.testMarksRecords.length})
+                  Add test record ({new Set(selectedBatch.testMarksRecords.map(r => `${r.date}_${r.testTitle}`)).size} Tests)
                 </span>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pb-4 px-1">
