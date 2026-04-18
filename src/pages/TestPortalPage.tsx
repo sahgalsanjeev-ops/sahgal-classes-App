@@ -78,7 +78,7 @@ const TestPortalPage = () => {
                     <FileText size={18} className="text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-foreground truncate">{test.title}</h3>
+                    <h3 className="text-sm font-semibold text-foreground truncate">{test.test_title}</h3>
                     <div className="flex items-center gap-3 mt-2">
                       <span className="text-[11px] text-muted-foreground flex items-center gap-1">
                         <FileText size={11} /> {qCount} Qs

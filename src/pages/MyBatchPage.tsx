@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Clock, FileText } from "lucide-react";
+import { ArrowLeft, Clock, FileText, Loader2 } from "lucide-react";
 import { Batch, BatchContent, computeTestPercentage, fetchBatchesSupabase, getBatches, makeId, StudentProfile } from "@/lib/batches";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { OnlineTestRow } from "@/lib/onlineTests";
@@ -99,18 +99,15 @@ const MyBatchPage = () => {
 
   useEffect(() => {
     const code = myBatch?.batchCode?.trim();
-    if (!code) {
-      setBatchOnlineTests([]);
-      return;
-    }
-    if (!isSupabaseConfigured || !supabase) {
+    if (!code || !isSupabaseConfigured || !supabase) {
       setBatchOnlineTests([]);
       return;
     }
 
     let cancelled = false;
-    setBatchTestsLoading(true);
-    void (async () => {
+    
+    const fetchBatchTests = async () => {
+      setBatchTestsLoading(true);
       const { data, error } = await supabase
         .from("online_tests")
         .select("*")
@@ -121,15 +118,35 @@ const MyBatchPage = () => {
       if (error) {
         console.error("Batch Online Tests Fetch Error:", error);
         setBatchOnlineTests([]);
-        setBatchTestsLoading(false);
-        return;
+      } else {
+        setBatchOnlineTests((data ?? []) as OnlineTestRow[]);
       }
-      setBatchOnlineTests((data ?? []) as OnlineTestRow[]);
       setBatchTestsLoading(false);
-    })();
+    };
+
+    void fetchBatchTests();
+
+    // Set up real-time subscription for deletions/updates
+    const channel = supabase
+      .channel(`online_tests_batch_${code}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "online_tests",
+          filter: `batch_code=eq.${code}`,
+        },
+        () => {
+          // Re-fetch when any change happens to tests in this batch
+          void fetchBatchTests();
+        }
+      )
+      .subscribe();
 
     return () => {
       cancelled = true;
+      void supabase.removeChannel(channel);
     };
   }, [myBatch?.batchCode, myBatch?.id]);
 
@@ -223,16 +240,26 @@ const MyBatchPage = () => {
               </AccordionItem>
               <AccordionItem value="onlinetests" className="border-b-0 border-t">
                 <AccordionTrigger className="text-sm font-semibold py-3 hover:no-underline">
-                  Online tests (MCQ)
+                  <div className="flex items-center justify-between w-full pr-4">
+                    <span>Online tests (MCQ)</span>
+                    {batchOnlineTests.length > 0 && !batchTestsLoading && (
+                      <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold">
+                        {batchOnlineTests.length} Live
+                      </span>
+                    )}
+                  </div>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-2 pb-2">
                     {!isSupabaseConfigured || !supabase ? (
                       <p className="text-xs text-muted-foreground">Online tests need Supabase to be configured.</p>
                     ) : batchTestsLoading ? (
-                      <p className="text-xs text-muted-foreground">Loading online tests…</p>
+                      <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                        <Loader2 className="animate-spin" size={14} />
+                        <span>Syncing tests...</span>
+                      </div>
                     ) : batchOnlineTests.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">No online tests assigned to this batch code yet.</p>
+                      <p className="text-xs text-muted-foreground italic opacity-60">No online tests assigned to this batch code yet.</p>
                     ) : (
                       batchOnlineTests.map((test) => {
                         const qCount = Array.isArray(test.questions) ? test.questions.length : 0;
@@ -242,9 +269,9 @@ const MyBatchPage = () => {
                             key={test.id}
                             type="button"
                             onClick={() => navigate(`/test/${test.id}`)}
-                            className="w-full text-left rounded-lg border border-border bg-background px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                            className="w-full text-left rounded-lg border border-border bg-background px-3 py-2.5 hover:bg-muted/50 transition-all active:scale-[0.98]"
                           >
-                            <p className="text-xs font-semibold text-foreground">{test.title}</p>
+                            <p className="text-xs font-semibold text-foreground">{test.test_title}</p>
                             <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-3">
                               <span className="inline-flex items-center gap-0.5">
                                 <FileText size={10} /> {qCount} Qs

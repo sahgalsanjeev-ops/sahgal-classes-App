@@ -1,7 +1,7 @@
 /**
  * online_tests table (expected Supabase columns):
  * - id: uuid (default gen_random_uuid())
- * - title: text
+ * - test_title: text
  * - duration_minutes: int
  * - questions: jsonb — array of McqQuestionJson
  * - batch_code: text (optional) — matches Batch.batchCode for My Batch listing
@@ -19,7 +19,7 @@ export type McqQuestionJson = {
 
 export type OnlineTestRow = {
   id: string;
-  title: string;
+  test_title: string;
   duration_minutes: number;
   questions: McqQuestionJson[];
   /** When set, test is listed under My Batch for this code; omitted from global Tests when non-empty. */
