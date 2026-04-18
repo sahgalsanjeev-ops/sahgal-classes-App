@@ -15,6 +15,7 @@ const MyBatchPage = () => {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
   const [batchOnlineTests, setBatchOnlineTests] = useState<OnlineTestRow[]>([]);
+  const [attempts, setAttempts] = useState<Set<string>>(new Set());
   const [batchTestsLoading, setBatchTestsLoading] = useState(false);
 
   useEffect(() => {
@@ -24,7 +25,8 @@ const MyBatchPage = () => {
       if (supabase) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          setEmail(user.email || "");
+          const userEmail = user.email || "";
+          setEmail(userEmail);
           const { data: p } = await supabase
             .from("profiles")
             .select("*, batches(*)")
@@ -32,6 +34,16 @@ const MyBatchPage = () => {
             .eq("status", "active")
             .maybeSingle();
           setProfile(p);
+
+          // Fetch attempts
+          const { data: attemptsData } = await supabase
+            .from("test_attempts")
+            .select("test_id")
+            .eq("student_email", userEmail);
+          
+          if (attemptsData) {
+            setAttempts(new Set(attemptsData.map(a => a.test_id)));
+          }
         }
       }
 
@@ -264,22 +276,42 @@ const MyBatchPage = () => {
                       batchOnlineTests.map((test) => {
                         const qCount = Array.isArray(test.questions) ? test.questions.length : 0;
                         const duration = Math.max(1, Number(test.duration_minutes) || 30);
+                        const isAttempted = attempts.has(test.id);
                         return (
                           <button
                             key={test.id}
                             type="button"
-                            onClick={() => navigate(`/test/${test.id}`)}
-                            className="w-full text-left rounded-lg border border-border bg-background px-3 py-2.5 hover:bg-muted/50 transition-all active:scale-[0.98]"
+                            disabled={isAttempted}
+                            onClick={() => !isAttempted && navigate(`/test/${test.id}`)}
+                            className={`w-full text-left rounded-lg border border-border px-3 py-2.5 transition-all ${
+                              isAttempted 
+                                ? "bg-muted/30 opacity-70 cursor-default" 
+                                : "bg-background hover:bg-muted/50 active:scale-[0.98]"
+                            }`}
                           >
-                            <p className="text-xs font-semibold text-foreground">{test.test_title}</p>
-                            <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-3">
-                              <span className="inline-flex items-center gap-0.5">
-                                <FileText size={10} /> {qCount} Qs
-                              </span>
-                              <span className="inline-flex items-center gap-0.5">
-                                <Clock size={10} /> {duration} min
-                              </span>
+                            <p className={`text-xs font-semibold ${isAttempted ? "text-muted-foreground" : "text-foreground"}`}>
+                              {test.test_title}
                             </p>
+                            <div className="flex items-center justify-between mt-1">
+                              <p className="text-[10px] text-muted-foreground flex items-center gap-3">
+                                <span className="inline-flex items-center gap-0.5">
+                                  <FileText size={10} /> {qCount} Qs
+                                </span>
+                                <span className="inline-flex items-center gap-0.5">
+                                  <Clock size={10} /> {duration} min
+                                </span>
+                              </p>
+                              {isAttempted && (
+                                <span className="text-[9px] font-bold text-success flex items-center gap-1">
+                                  Attempted
+                                </span>
+                              )}
+                            </div>
+                            {isAttempted && (
+                              <p className="text-[9px] text-success font-medium mt-1 italic">
+                                You have already attempted this test
+                              </p>
+                            )}
                           </button>
                         );
                       })

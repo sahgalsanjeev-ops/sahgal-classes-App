@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppHeader from "@/components/AppHeader";
 import { motion } from "framer-motion";
-import { Clock, FileText, ChevronRight } from "lucide-react";
+import { Clock, FileText, ChevronRight, CheckCircle2 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { OnlineTestRow } from "@/lib/onlineTests";
 import { isGlobalOnlineTest } from "@/lib/onlineTests";
@@ -10,6 +10,7 @@ import { isGlobalOnlineTest } from "@/lib/onlineTests";
 const TestPortalPage = () => {
   const navigate = useNavigate();
   const [tests, setTests] = useState<OnlineTestRow[]>([]);
+  const [attempts, setAttempts] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,20 +21,37 @@ const TestPortalPage = () => {
       return;
     }
 
-    const { data, error: qErr } = await supabase
-      .from("online_tests")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data: { session } } = await supabase.auth.getSession();
+    const email = session?.user?.email;
 
-    if (qErr) {
-      console.error("Full Online Tests Error:", qErr);
-      setError(`Fetch failed: ${qErr.message} (Code: ${qErr.code}). Check if columns 'duration_minutes', 'questions', 'batch_code' exist.`);
+    const [testsRes, attemptsRes] = await Promise.all([
+      supabase
+        .from("online_tests")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      email
+        ? supabase
+            .from("test_attempts")
+            .select("test_id")
+            .eq("student_email", email)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (testsRes.error) {
+      console.error("Full Online Tests Error:", testsRes.error);
+      setError(`Fetch failed: ${testsRes.error.message} (Code: ${testsRes.error.code}). Check if columns 'duration_minutes', 'questions', 'batch_code' exist.`);
       setLoading(false);
       return;
     }
 
-    const rows = (data ?? []) as OnlineTestRow[];
+    const rows = (testsRes.data ?? []) as OnlineTestRow[];
     setTests(rows.filter(isGlobalOnlineTest));
+
+    if (attemptsRes.data) {
+      const attemptedIds = new Set(attemptsRes.data.map((a: { test_id: string }) => a.test_id));
+      setAttempts(attemptedIds);
+    }
+
     setLoading(false);
   }, []);
 
@@ -62,6 +80,8 @@ const TestPortalPage = () => {
           {tests.map((test, i) => {
             const qCount = Array.isArray(test.questions) ? test.questions.length : 0;
             const duration = Math.max(1, Number(test.duration_minutes) || 30);
+            const isAttempted = attempts.has(test.id);
+
             return (
               <motion.button
                 key={test.id}
@@ -69,16 +89,26 @@ const TestPortalPage = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => navigate(`/test/${test.id}`)}
-                className="w-full bg-card rounded-xl p-4 border border-border shadow-sm text-left"
+                whileTap={isAttempted ? undefined : { scale: 0.98 }}
+                onClick={() => !isAttempted && navigate(`/test/${test.id}`)}
+                className={`w-full rounded-xl p-4 border shadow-sm text-left transition-colors ${
+                  isAttempted 
+                    ? "bg-muted/30 border-border cursor-default opacity-80" 
+                    : "bg-card border-border hover:border-primary/30"
+                }`}
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-                    <FileText size={18} className="text-primary" />
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    isAttempted ? "bg-secondary text-muted-foreground" : "bg-secondary text-primary"
+                  }`}>
+                    <FileText size={18} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-foreground truncate">{test.test_title}</h3>
+                    <h3 className={`text-sm font-semibold truncate ${
+                      isAttempted ? "text-muted-foreground" : "text-foreground"
+                    }`}>
+                      {test.test_title}
+                    </h3>
                     <div className="flex items-center gap-3 mt-2">
                       <span className="text-[11px] text-muted-foreground flex items-center gap-1">
                         <FileText size={11} /> {qCount} Qs
@@ -87,8 +117,16 @@ const TestPortalPage = () => {
                         <Clock size={11} /> {duration} min
                       </span>
                     </div>
+                    {isAttempted && (
+                      <div className="flex items-center gap-1.5 mt-2 text-[10px] font-medium text-success">
+                        <CheckCircle2 size={12} />
+                        You have already attempted this test
+                      </div>
+                    )}
                   </div>
-                  <ChevronRight size={18} className="text-muted-foreground flex-shrink-0 mt-1" />
+                  {!isAttempted && (
+                    <ChevronRight size={18} className="text-muted-foreground flex-shrink-0 mt-1" />
+                  )}
                 </div>
               </motion.button>
             );
