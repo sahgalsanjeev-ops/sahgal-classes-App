@@ -218,7 +218,7 @@ const AdminOnlineTestSection = () => {
     setQuestions([emptyQuestion()]);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (shouldPublish: boolean = true) => {
     if (!testTitle.trim()) {
       toast({ variant: "destructive", title: "Title required", description: "Enter a test title." });
       return;
@@ -295,20 +295,21 @@ const AdminOnlineTestSection = () => {
         duration_minutes: dur,
         questions: built,
         batch_code: code || null,
+        is_published: shouldPublish,
       };
 
       if (editingTestId) {
         const { error } = await supabase.from("online_tests").update(payload).eq("id", editingTestId);
         if (error) throw error;
-        toast({ title: "Success", description: "Test updated successfully." });
+        toast({ title: "Success", description: shouldPublish ? "Test published successfully." : "Test saved as draft." });
       } else {
         const { error } = await supabase.from("online_tests").insert(payload);
         if (error) throw error;
         toast({
-          title: "Test published",
-          description: code
-            ? `Assigned to batch code ${code}. Students see it under Profile → My Batch.`
-            : "Students can see it under Tests.",
+          title: shouldPublish ? "Test published" : "Test saved as draft",
+          description: shouldPublish 
+            ? (code ? `Assigned to batch code ${code}. Students see it under Profile → My Batch.` : "Students can see it under Tests.")
+            : "Test saved. Students will not see this until you publish it.",
         });
       }
 
@@ -376,6 +377,11 @@ const AdminOnlineTestSection = () => {
                       <p className="text-[11px] text-muted-foreground mt-1">
                         {test.questions.length} Questions • {test.duration_minutes} min
                         {test.batch_code ? ` • Batch: ${test.batch_code}` : " • Global"}
+                        {!test.is_published && (
+                          <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 uppercase">
+                            Draft
+                          </span>
+                        )}
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -587,9 +593,25 @@ const AdminOnlineTestSection = () => {
             Add question
           </Button>
 
-          <Button type="button" className="w-full h-11" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : editingTestId ? "Update test" : "Publish test"}
-          </Button>
+          <div className="flex gap-3">
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="flex-1 h-11 font-bold uppercase tracking-tight" 
+              onClick={() => handleSave(false)} 
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save as Draft"}
+            </Button>
+            <Button 
+              type="button" 
+              className="flex-[2] h-11 font-bold uppercase tracking-tight" 
+              onClick={() => handleSave(true)} 
+              disabled={saving}
+            >
+              {saving ? "Publishing..." : editingTestId ? "Update & Publish" : "Publish Test"}
+            </Button>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

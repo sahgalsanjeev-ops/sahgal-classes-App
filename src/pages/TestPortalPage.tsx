@@ -48,7 +48,7 @@ const TestPortalPage = () => {
     }
 
     const rows = (testsRes.data ?? []) as OnlineTestRow[];
-    const globalTests = rows.filter(isGlobalOnlineTest);
+    const globalTests = rows.filter(r => isGlobalOnlineTest(r) && r.is_published);
     setTests(globalTests);
 
     if (attemptsRes.data) {

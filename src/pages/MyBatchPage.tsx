@@ -131,7 +131,8 @@ const MyBatchPage = () => {
         console.error("Batch Online Tests Fetch Error:", error);
         setBatchOnlineTests([]);
       } else {
-        setBatchOnlineTests((data ?? []) as OnlineTestRow[]);
+        const rows = (data ?? []) as OnlineTestRow[];
+        setBatchOnlineTests(rows.filter(r => r.is_published));
       }
       setBatchTestsLoading(false);
     };

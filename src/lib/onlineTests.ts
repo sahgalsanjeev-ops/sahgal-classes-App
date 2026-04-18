@@ -25,6 +25,7 @@ export type OnlineTestRow = {
   /** When set, test is listed under My Batch for this code; omitted from global Tests when non-empty. */
   batch_code?: string | null;
   created_at?: string;
+  is_published: boolean;
 };
 
 /** Tests with no batch assignment appear on the global /tests page. */
