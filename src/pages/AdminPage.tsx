@@ -20,6 +20,7 @@ import {
   Filter,
   PlayCircle,
   ArrowUpDown,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -743,6 +744,7 @@ const BatchManager = ({
   updateSelectedBatch,
   refreshBatches,
 }: BatchManagerProps) => {
+  const navigate = useNavigate();
   const [attendanceSessionDate, setAttendanceSessionDate] = useState(() => new Date());
   const attendanceDateKey = useMemo(() => format(attendanceSessionDate, "dd-MM-yyyy"), [attendanceSessionDate]);
 
@@ -1391,6 +1393,16 @@ const BatchManager = ({
                           </p>
                         </div>
                         <div className="flex gap-2 shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5 text-[10px] font-bold uppercase tracking-tight text-primary hover:bg-primary/5 border-primary/20"
+                            onClick={() => navigate(`/admin/student-report/${s.id}`)}
+                          >
+                            <FileText size={14} />
+                            Report
+                          </Button>
                           <Button
                             type="button"
                             size="sm"

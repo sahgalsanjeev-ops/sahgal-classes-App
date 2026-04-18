@@ -23,6 +23,7 @@ import TestAttemptPage from "./pages/TestAttemptPage";
 import TestResultPage from "./pages/TestResultPage";
 import AdminPage from "./pages/AdminPage";
 import AdminStudentDetailPage from "./pages/AdminStudentDetailPage";
+import AdminStudentReportPage from "./pages/AdminStudentReportPage";
 import HelpSupportPage from "./pages/HelpSupportPage";
 import AboutPage from "./pages/AboutPage";
 import MyBatchPage from "./pages/MyBatchPage";
@@ -134,6 +135,16 @@ const App = () => (
                   <ProtectedRoute>
                     <AdminRoute>
                       <AdminStudentDetailPage />
+                    </AdminRoute>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/student-report/:studentId"
+                element={
+                  <ProtectedRoute>
+                    <AdminRoute>
+                      <AdminStudentReportPage />
                     </AdminRoute>
                   </ProtectedRoute>
                 }
