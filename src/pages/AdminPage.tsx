@@ -19,6 +19,7 @@ import {
   Search,
   Filter,
   PlayCircle,
+  ArrowUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -783,6 +784,21 @@ const BatchManager = ({
   const testDateKey = useMemo(() => format(testSessionDate, "dd-MM-yyyy"), [testSessionDate]);
   const [testDraft, setTestDraft] = useState<Record<string, { marks: string; absent: boolean }>>({});
   const [isSavingTest, setIsSavingTest] = useState(false);
+
+  const [studentSortOrder, setStudentSortOrder] = useState<"name" | "roll">("name");
+
+  const sortedStudents = useMemo(() => {
+    if (!selectedBatch) return [];
+    return [...selectedBatch.students].sort((a, b) => {
+      if (studentSortOrder === "name") {
+        return (a.name || "").localeCompare(b.name || "");
+      } else {
+        const rollA = parseInt(a.rollNo) || 0;
+        const rollB = parseInt(b.rollNo) || 0;
+        return rollA - rollB;
+      }
+    });
+  }, [selectedBatch?.students, studentSortOrder]);
 
   const handleUploadAndAdd = async () => {
     if (!selectedBatch || !resourceTitle.trim()) {
@@ -1655,7 +1671,19 @@ const BatchManager = ({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {selectedBatch.students.map((s) => {
+                    <div className="flex items-center justify-between px-1">
+                      <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">Mark Attendance</p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1.5 text-[10px] font-bold uppercase tracking-tight text-primary hover:bg-primary/5"
+                        onClick={() => setStudentSortOrder(prev => prev === "name" ? "roll" : "name")}
+                      >
+                        <ArrowUpDown size={12} />
+                        Sort: {studentSortOrder === "name" ? "Name" : "Roll No"}
+                      </Button>
+                    </div>
+                    {sortedStudents.map((s) => {
                       const draft = attendanceDraft[s.id];
                       const status = draft?.status;
                       const isLate = status === "Late";
@@ -1820,7 +1848,19 @@ const BatchManager = ({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {selectedBatch.students.map((s) => {
+                    <div className="flex items-center justify-between px-1">
+                      <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">Mark HW</p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1.5 text-[10px] font-bold uppercase tracking-tight text-primary hover:bg-primary/5"
+                        onClick={() => setStudentSortOrder(prev => prev === "name" ? "roll" : "name")}
+                      >
+                        <ArrowUpDown size={12} />
+                        Sort: {studentSortOrder === "name" ? "Name" : "Roll No"}
+                      </Button>
+                    </div>
+                    {sortedStudents.map((s) => {
                       const draft = hwDraft[s.id];
                       const status = draft?.status;
 
@@ -2018,7 +2058,19 @@ const BatchManager = ({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {selectedBatch.students.map((s) => {
+                    <div className="flex items-center justify-between px-1">
+                      <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">Mark Test Marks</p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1.5 text-[10px] font-bold uppercase tracking-tight text-primary hover:bg-primary/5"
+                        onClick={() => setStudentSortOrder(prev => prev === "name" ? "roll" : "name")}
+                      >
+                        <ArrowUpDown size={12} />
+                        Sort: {studentSortOrder === "name" ? "Name" : "Roll No"}
+                      </Button>
+                    </div>
+                    {sortedStudents.map((s) => {
                       const draft = testDraft[s.id] || { marks: "", absent: false };
                       const pct = computeTestPercentage(draft.absent ? "A" : draft.marks, testMaxMarks);
 
